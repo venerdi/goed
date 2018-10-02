@@ -1,12 +1,32 @@
 package cyborg
 
 import (
+	"errors"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"log"
 	"strings"
 )
 
+type AssignRoleOnGame struct {
+	GuildName   string
+	GameName    string
+	RoleName    string
+	ExcludeUIDs []string
+}
+
+type CyborgBotDiscordConfig struct {
+	Token     string
+	Operators []string
+	AutoRoles []AssignRoleOnGame
+}
+
+func (c *CyborgBotDiscordConfig) CheckConfig() error {
+	if len(c.Token) == 0 {
+		return errors.New("Empty discord bot token")
+	}
+	return nil
+}
 
 type CybordBot struct {
 	Token            string
@@ -18,16 +38,16 @@ type CybordBot struct {
 	DgSession        *discordgo.Session
 }
 
-func NewCybordBot (cfg *CyborgBotConfig) *CybordBot {
+func NewCybordBot (cfg *CyborgBotDiscordConfig) *CybordBot {
 	ver := "0.0.2"
 	b := &CybordBot {
-		Token: cfg.DiscordConf.Token,
+		Token: cfg.Token,
 		Version: ver,
-		roleAssigner: newRoleAssigner(cfg.DiscordConf.AutoRoles),
-		t: newTalker(cfg.DiscordConf.Operators, ver),
+		roleAssigner: newRoleAssigner(cfg.AutoRoles),
+		t: newTalker(cfg.Operators, ver),
 	}
 	b.operators = make(map[string]int)
-	for _, op := range cfg.DiscordConf.Operators {
+	for _, op := range cfg.Operators {
 		b.operators[op] = 1
 	}
 	return b
