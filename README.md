@@ -2,4 +2,4 @@
 
 # cyborg
 An independed, alive cyborb male.
-Know as	Jaques Station owner.
+Known as Jaques Station owner.
