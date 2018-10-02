@@ -1,5 +1,5 @@
-## Go E:D stuff
+# Go E:D stuff
 
-# cyborg
-An independed, alive cyborb male.
+## cyborg
+An independed, alive cyborg male.
 Known as Jaques Station owner.
