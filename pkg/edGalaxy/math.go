@@ -1,4 +1,4 @@
-package galaxy
+package edGalaxy
 
 import (
 	"math"
@@ -8,6 +8,14 @@ type Point3D struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
 	Z float64 `json:"z"`
+}
+
+func (p *Point3D) Clone() *Point3D {
+	return &Point3D{
+		X: p.X,
+		Y: p.Y,
+		Z: p.Z,
+	}
 }
 
 var Sol *Point3D
@@ -26,4 +34,3 @@ func Distance(p1, p2 *Point3D) float64 {
 func (p1 *Point3D) Distance(p *Point3D) float64 {
 	return Distance(p, p1)
 }
-

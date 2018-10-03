@@ -6,6 +6,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"log"
 	"strings"
+	"goed/pkg/edsm"
+	"goed/pkg/edGalaxy"
 )
 
 type AssignRoleOnGame struct {
@@ -36,15 +38,20 @@ type CybordBot struct {
 	roleAssigner     *role_assigner
 	t *talker
 	DgSession        *discordgo.Session
+	galaxyInfoCenter *edGalaxy.GalaxyInfoCenter
 }
 
 func NewCybordBot (cfg *CyborgBotDiscordConfig) *CybordBot {
 	ver := "0.0.2"
+	ic := edGalaxy.NewGalaxyInfoCenter()
+	ic.AddSummaryProvider("edsm", edsm.NewEDSMConnector(3))
+	
 	b := &CybordBot {
 		Token: cfg.Token,
 		Version: ver,
 		roleAssigner: newRoleAssigner(cfg.AutoRoles),
-		t: newTalker(cfg.Operators, ver),
+		t: newTalker(cfg.Operators, ver, ic),
+		galaxyInfoCenter: ic,
 	}
 	b.operators = make(map[string]int)
 	for _, op := range cfg.Operators {
