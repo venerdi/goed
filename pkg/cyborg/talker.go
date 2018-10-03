@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"text/scanner"
 )
 
 type incoming_message struct {
@@ -93,7 +94,90 @@ func (t *talker) handleIncomingMessage(im *incoming_message) {
 		t.handleDistanceRequest(im.s, im.m.ChannelID, ctx[9:])
 		return
 	}
+	if _, op := t.operators[im.m.Author.ID]; im.isDirect && op {
+		t.handleDirectOperatorMessage(im)
+	}
 }
+
+func (t *talker) handleDirectOperatorMessage(im *incoming_message) {
+	var s scanner.Scanner
+	s.Init(strings.NewReader(im.m.Content))
+	tokens := make([]string, 0, 5)
+	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
+		tokens = append(tokens, s.TokenText())
+	}
+	if len(tokens) == 0 {
+		SendMessage(im.s, im.m.ChannelID, "hmm... no tokens")
+		return
+	}
+
+	switch strings.ToLower(tokens[0]) {
+	case "ls":
+		t.handleOperatorLS(im, tokens[1:])
+	case "say":
+		t.handleOperatorSay(im, tokens[1:])
+	default:
+		SendMessage(im.s, im.m.ChannelID, "Unknown command")
+		return
+	}
+}
+
+func (t *talker) handleOperatorSay(im *incoming_message, tokens []string) {
+	if len(tokens) < 2 {
+		SendMessage(im.s, im.m.ChannelID, "syntax is: say channeldId message")
+		return
+	}
+	idx := strings.Index(im.m.Content, tokens[0])
+	if idx < 0 {
+		SendMessage(im.s, im.m.ChannelID, "Say: can't find channelId")
+		return
+	}
+	stripSize := idx + len(tokens[0]) + 1
+	if len(im.m.Content) <= stripSize {
+		SendMessage(im.s, im.m.ChannelID, "Say: empty message")
+	}
+	SendMessage(im.s, tokens[0], im.m.Content[stripSize:])
+}
+
+func (t *talker) handleOperatorLS(im *incoming_message, tokens []string) {
+	if len(tokens) == 0 {
+		SendMessage(im.s, im.m.ChannelID, "syntax is: ls category")
+		return
+	}
+	switch strings.ToLower(tokens[0]) {
+	case "channels":
+		t.handleOperatorLSchannels(im)
+	default:
+		SendMessage(im.s, im.m.ChannelID, "Unknown ls category")
+	}
+}
+
+func (t *talker) handleOperatorLSchannels(im *incoming_message) {
+
+	channelsInfo := make([]string, 0, 50)
+
+	channelsInfo = append(channelsInfo, "```")
+
+	for _, g := range im.s.State.Guilds {
+		channelsInfo = append(channelsInfo, fmt.Sprintf("%s %s", g.Name, g.ID))
+		for _, c := range g.Channels {
+			var tp string
+			switch c.Type {
+			case discordgo.ChannelTypeGuildText:
+				tp = "text"
+			case discordgo.ChannelTypeGuildVoice:
+				tp = "voice"
+			default:
+				continue
+			}
+			channelsInfo = append(channelsInfo, fmt.Sprintf("    %s %s (%v)", c.ID, c.Name, tp))
+		}
+	}
+	channelsInfo = append(channelsInfo, "```")
+	out := strings.Join(channelsInfo, "\n")
+	SendMessage(im.s, im.m.ChannelID, out)
+}
+
 func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, systemName string) {
 
 	if len(systemName) < 2 {
@@ -152,8 +236,7 @@ func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, 
 		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[1]))
 		return
 	}
-	
-	
+
 	ch := make(edGalaxy.SystemSummaryReplyChan)
 
 	rpls := make([]*edGalaxy.SystemSummaryReply, 2)
