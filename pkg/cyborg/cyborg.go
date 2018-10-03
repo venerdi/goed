@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"goed/pkg/edGalaxy"
+	"goed/pkg/edsm"
 	"log"
 	"strings"
-	"goed/pkg/edsm"
-	"goed/pkg/edGalaxy"
 )
 
 type AssignRoleOnGame struct {
@@ -18,9 +18,10 @@ type AssignRoleOnGame struct {
 }
 
 type CyborgBotDiscordConfig struct {
-	Token     string
-	Operators []string
-	AutoRoles []AssignRoleOnGame
+	Token          string
+	Operators      []string
+	AutoRoles      []AssignRoleOnGame
+	IgnoredSystems []string
 }
 
 func (c *CyborgBotDiscordConfig) CheckConfig() error {
@@ -36,21 +37,21 @@ type CybordBot struct {
 	enableRA         bool
 	operators        map[string]int
 	roleAssigner     *role_assigner
-	t *talker
+	t                *talker
 	DgSession        *discordgo.Session
 	galaxyInfoCenter *edGalaxy.GalaxyInfoCenter
 }
 
-func NewCybordBot (cfg *CyborgBotDiscordConfig) *CybordBot {
+func NewCybordBot(cfg *CyborgBotDiscordConfig) *CybordBot {
 	ver := "0.0.2"
 	ic := edGalaxy.NewGalaxyInfoCenter()
 	ic.AddSummaryProvider("edsm", edsm.NewEDSMConnector(3))
-	
-	b := &CybordBot {
-		Token: cfg.Token,
-		Version: ver,
-		roleAssigner: newRoleAssigner(cfg.AutoRoles),
-		t: newTalker(cfg.Operators, ver, ic),
+
+	b := &CybordBot{
+		Token:            cfg.Token,
+		Version:          ver,
+		roleAssigner:     newRoleAssigner(cfg.AutoRoles),
+		t:                newTalker(cfg.Operators, ver, ic, cfg.IgnoredSystems),
 		galaxyInfoCenter: ic,
 	}
 	b.operators = make(map[string]int)
@@ -104,8 +105,6 @@ func (bot *CybordBot) Connect(logLevel int) (err error) {
 	return nil
 }
 
-
-
 func dumpMember(n int, m *discordgo.Member) {
 	log.Printf(" member %5d %s: roles %s\n", n, m.User.Username, strings.Join(m.Roles, ", "))
 }
@@ -131,13 +130,11 @@ func (bot *CybordBot) onReady(r *discordgo.Ready) {
 	}
 }
 
-
 func (bot *CybordBot) onGuildCreate(gc *discordgo.GuildCreate) {
 	log.Printf("discordgo.GuildCreate\n")
 	bot.roleAssigner.updateGuildInfo(gc.Guild)
 	dumpGuild(gc.Guild)
 }
-
 
 func (bot *CybordBot) Close() (err error) {
 	bot.roleAssigner.close()

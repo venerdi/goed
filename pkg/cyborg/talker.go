@@ -21,17 +21,22 @@ type talker struct {
 	operators        map[string]int
 	incomingMessages chan *incoming_message
 	galaxyInfoCenter *edGalaxy.GalaxyInfoCenter
+	ignoredSystems   map[string]bool
 }
 
-func newTalker(ops []string, ver string, galaxyInfoCenter *edGalaxy.GalaxyInfoCenter) *talker {
+func newTalker(ops []string, ver string, galaxyInfoCenter *edGalaxy.GalaxyInfoCenter, ignoredSystems []string) *talker {
 	t := &talker{
 		version:          ver,
 		operators:        make(map[string]int),
 		incomingMessages: make(chan *incoming_message),
 		galaxyInfoCenter: galaxyInfoCenter,
+		ignoredSystems:   make(map[string]bool),
 	}
 	for _, op := range ops {
 		t.operators[op] = 1
+	}
+	for _, sn := range ignoredSystems {
+		t.ignoredSystems[sn] = true
 	}
 	return t
 }
@@ -95,6 +100,12 @@ func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, sy
 		SendMessage(ds, channelID, "System name must be at least 2 chars")
 		return
 	}
+
+	if _, ignored := t.ignoredSystems[strings.ToLower(systemName)]; ignored {
+		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", systemName))
+		return
+	}
+
 	ch := make(edGalaxy.SystemSummaryReplyChan)
 	go t.galaxyInfoCenter.SystemSymmaryByName(systemName, ch)
 	rpl := <-ch
@@ -131,6 +142,18 @@ func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, 
 		SendMessage(ds, channelID, "System name must be at least 2 chars")
 		return
 	}
+
+	if _, ignored := t.ignoredSystems[strings.ToLower(pair[0])]; ignored {
+		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[0]))
+		return
+	}
+
+	if _, ignored := t.ignoredSystems[strings.ToLower(pair[1])]; ignored {
+		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[1]))
+		return
+	}
+	
+	
 	ch := make(edGalaxy.SystemSummaryReplyChan)
 
 	rpls := make([]*edGalaxy.SystemSummaryReply, 2)
