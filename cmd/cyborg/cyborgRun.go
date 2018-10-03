@@ -4,24 +4,25 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"github.com/bwmarrin/discordgo"
+	"github.com/spf13/viper"
+	"goed/pkg/cyborg"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"goed/pkg/cyborg"
 	"syscall"
-	"github.com/bwmarrin/discordgo"
-	"github.com/spf13/viper"
 )
-
 
 type CyborgBotConfig struct {
 	DiscordConf cyborg.CyborgBotDiscordConfig
 }
 
 func (c *CyborgBotConfig) check() error {
-	return c.DiscordConf.CheckConfig() 
+	return c.DiscordConf.CheckConfig()
 }
 
 func loadConfig(path string) (*CyborgBotConfig, error) {
@@ -53,6 +54,7 @@ func main() {
 
 	debug := flag.Bool("debug", false, "switch on debuging mode")
 	silent := flag.Bool("silent", false, "be silent")
+	pprofAddr := flag.String("pprof", "", "host:port for pprof")
 
 	flag.Parse()
 	loglevel := discordgo.LogInformational
@@ -75,6 +77,12 @@ func main() {
 	if err != nil {
 		fmt.Println("error creating bot,", err)
 		return
+	}
+
+	if len(*pprofAddr) > 4 {
+		go func() {
+			log.Println(http.ListenAndServe(*pprofAddr, nil))
+		}()
 	}
 
 	// Wait here until CTRL-C or other term signal is received.
