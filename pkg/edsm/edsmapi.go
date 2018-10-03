@@ -37,7 +37,7 @@ type EDSMSystemV1 struct {
 	EDSMid64     int64            `json:"id64"`
 	Coords       edGalaxy.Point3D `json:"coords"`
 	CoordsLocked bool             `json:"coordsLocked"`
-	SystemInfo   EDSMSysInfo      `json:"information"`
+	SystemInfo   EDSMSysInfo      `json:"information,omitempty"`
 	PrimaryStar  EDSMStarInfo     `json:"primaryStar"`
 }
 
@@ -51,7 +51,7 @@ func edsmSystem2GalaxySummary(eds *EDSMSystemV1) *edGalaxy.SystemSummary {
 		EDSMid64: eds.EDSMid64,
 		EDDBid:   0,
 		Coords:   &eds.Coords,
-		BriefInfo: & edGalaxy.BriefSystemInfo{
+		BriefInfo: &edGalaxy.BriefSystemInfo{
 			Allegiance:   eds.SystemInfo.Allegiance,
 			Government:   eds.SystemInfo.Government,
 			Faction:      eds.SystemInfo.Faction,
@@ -76,8 +76,8 @@ type cachedEDSMSystemV1 struct {
 
 type FetchEDSMSystemReply struct {
 	RequestedSystemName string
-	System *EDSMSystemV1
-	Err    error
+	System              *EDSMSystemV1
+	Err                 error
 }
 
 const (
@@ -128,8 +128,8 @@ func (c *EDSMConnector) SystemSymmaryByName(systemName string, rplChannel edGala
 	rpl := <-rplC
 	rplChannel <- &edGalaxy.SystemSummaryReply{
 		RequestedSystemName: rpl.RequestedSystemName,
-		System: edsmSystem2GalaxySummary(rpl.System),
-		Err:    rpl.Err,
+		System:              edsmSystem2GalaxySummary(rpl.System),
+		Err:                 rpl.Err,
 	}
 }
 
@@ -162,11 +162,17 @@ func (c *EDSMConnector) fetchSystem(systemName string) (*EDSMSystemV1, error) {
 	}
 	resp.Body.Close()
 
+	sbody := string(body)
+	if idx := strings.Index(sbody, `"information":[]`); idx != -1 {
+		log.Printf("Stripping empty information from: \n%s\n", sbody)
+		body = append(body[:idx], body[idx+17:]...)
+	}
+
 	if len(body) < 10 {
 		log.Printf("Failed parse system %s (data too short): %s\n", systemName, string(body))
 		if string(body) == "[]" {
 			return nil, errors.New("Unknown system.")
-		} 
+		}
 		return nil, errors.New("System is not known of EDSM failure")
 	}
 
