@@ -70,8 +70,8 @@ func edsmSystem2GalaxySummary(eds *EDSMSystemV1) *edGalaxy.SystemSummary {
 }
 
 type cachedEDSMSystemV1 struct {
-	system *EDSMSystemV1
-	expire int64
+	system    *EDSMSystemV1
+	timestamp time.Time
 }
 
 type FetchEDSMSystemReply struct {
@@ -196,10 +196,19 @@ func (c *EDSMConnector) GetSystemInfo(systemName string, rplChannel chan *FetchE
 	c.mtx.RUnlock() // must NOT defer
 
 	if here {
-		log.Printf("Returning cached system %s\n", systemName)
-		rplChannel <- &FetchEDSMSystemReply{systemName, cs.system, nil}
-		return
+		if time.Now().Sub(cs.timestamp).Hours() < 1 {
+			log.Printf("Returning cached system %s\n", systemName)
+			rplChannel <- &FetchEDSMSystemReply{systemName, cs.system, nil}
+			return
+		}
+		log.Printf("System %s is expired in the cache\n", systemName)
+		if !mayAskEDSM {
+			log.Printf("Returning EXPIRED cached system %s (no free slots)\n", systemName)
+			rplChannel <- &FetchEDSMSystemReply{systemName, cs.system, nil}
+			return
+		}
 	}
+
 	if !mayAskEDSM {
 		rplChannel <- &FetchEDSMSystemReply{systemName, nil, errors.New("all fetchers are busy")}
 		return
@@ -217,7 +226,7 @@ func (c *EDSMConnector) GetSystemInfo(systemName string, rplChannel chan *FetchE
 
 	if len(usn) > 1 {
 		c.mtx.Lock()
-		c.systemsCache[usn] = &cachedEDSMSystemV1{s, 1}
+		c.systemsCache[usn] = &cachedEDSMSystemV1{s, time.Now()}
 		c.mtx.Unlock()
 		rplChannel <- &FetchEDSMSystemReply{systemName, s, nil}
 		return
