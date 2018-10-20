@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
-	"goed/pkg/edGalaxy"
-	"goed/pkg/edsm"
+	"goed/edGalaxy"
+	"goed/edgic"
+	"goed/edsm"
 	"log"
 	"strings"
 )
@@ -39,19 +40,23 @@ type CybordBot struct {
 	roleAssigner     *role_assigner
 	t                *talker
 	DgSession        *discordgo.Session
+	giClient         *edgic.EDInfoCenterClient
 	galaxyInfoCenter *edGalaxy.GalaxyInfoCenter
 }
 
-func NewCybordBot(cfg *CyborgBotDiscordConfig) *CybordBot {
-	ver := "0.0.2"
+func NewCybordBot(cfg *CyborgBotDiscordConfig, galaxyInfoAddress string) *CybordBot {
+	ver := "0.0.3"
 	ic := edGalaxy.NewGalaxyInfoCenter()
 	ic.AddSummaryProvider("edsm", edsm.NewEDSMConnector(3))
+	
+	giClient := edgic.NewEDInfoCenterClient(galaxyInfoAddress)
 
 	b := &CybordBot{
 		Token:            cfg.Token,
 		Version:          ver,
 		roleAssigner:     newRoleAssigner(cfg.AutoRoles),
-		t:                newTalker(cfg.Operators, ver, ic, cfg.IgnoredSystems),
+		t:                newTalker(cfg.Operators, ver, giClient, ic, cfg.IgnoredSystems),
+		giClient: giClient,
 		galaxyInfoCenter: ic,
 	}
 	b.operators = make(map[string]int)

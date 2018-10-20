@@ -3,7 +3,8 @@ package cyborg
 import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
-	"goed/pkg/edGalaxy"
+	"goed/edGalaxy"
+	"goed/edgic"
 	"log"
 	"regexp"
 	"strconv"
@@ -21,16 +22,18 @@ type talker struct {
 	version          string
 	operators        map[string]int
 	incomingMessages chan *incoming_message
-	galaxyInfoCenter *edGalaxy.GalaxyInfoCenter
+	giClient         *edgic.EDInfoCenterClient
 	ignoredSystems   map[string]bool
+	galaxyInfoCenter *edGalaxy.GalaxyInfoCenter
 }
 
-func newTalker(ops []string, ver string, galaxyInfoCenter *edGalaxy.GalaxyInfoCenter, ignoredSystems []string) *talker {
+func newTalker(ops []string, ver string, giClient *edgic.EDInfoCenterClient, galaxyInfoCenter *edGalaxy.GalaxyInfoCenter, ignoredSystems []string) *talker {
 	t := &talker{
 		version:          ver,
 		operators:        make(map[string]int),
 		incomingMessages: make(chan *incoming_message),
 		galaxyInfoCenter: galaxyInfoCenter,
+		giClient:         giClient,
 		ignoredSystems:   make(map[string]bool),
 	}
 	for _, op := range ops {
@@ -147,8 +150,36 @@ func (t *talker) handleOperatorLS(im *incoming_message, tokens []string) {
 	switch strings.ToLower(tokens[0]) {
 	case "channels":
 		t.handleOperatorLSchannels(im)
+	case "members":
+		t.handleOperatorLSmembers(im)
 	default:
 		SendMessage(im.s, im.m.ChannelID, "Unknown ls category")
+	}
+}
+
+func (t *talker) handleOperatorLSmembers(im *incoming_message) {
+
+	membersInfo := make([]string, 0, 1000)
+
+	for _, g := range im.s.State.Guilds {
+		membersInfo = append(membersInfo, fmt.Sprintf("%s %s", g.Name, g.ID))
+		for _, m := range g.Members {
+			membersInfo = append(membersInfo, fmt.Sprintf("    %s %s (%v)", m.User.ID, m.User.Username, m.Nick))
+		}
+	}
+	txt := "```"
+	for i, info := range membersInfo {
+		txt += "\n"
+		txt += info
+		if (i+1)%24 == 0 {
+			txt += "```"
+			SendMessage(im.s, im.m.ChannelID, txt)
+			txt = "```"
+		}
+	}
+	if len(txt) > 3 {
+		txt += "```"
+		SendMessage(im.s, im.m.ChannelID, txt)
 	}
 }
 
@@ -173,6 +204,7 @@ func (t *talker) handleOperatorLSchannels(im *incoming_message) {
 			channelsInfo = append(channelsInfo, fmt.Sprintf("    %s %s (%v)", c.ID, c.Name, tp))
 		}
 	}
+
 	channelsInfo = append(channelsInfo, "```")
 	out := strings.Join(channelsInfo, "\n")
 	SendMessage(im.s, im.m.ChannelID, out)
@@ -191,27 +223,26 @@ func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, sy
 	}
 
 	ch := make(edGalaxy.SystemSummaryReplyChan)
-	go t.galaxyInfoCenter.SystemSymmaryByName(systemName, ch)
+	go t.galaxyInfoCenter.SystemSummaryByName(systemName, ch)
 	rpl := <-ch
 	if rpl.Err != nil {
 		SendMessage(ds, channelID, fmt.Sprintf("Couldn't get system info for %s\n%v\n", systemName, rpl.Err))
 	} else {
 		s := rpl.System
-		txt := fmt.Sprintf(
-			"```\n"+
-				"%s\n"+
-				"Distance from Sol: %.02f\n"+
+		txt := fmt.Sprintf("```\n%s\nDistance from Sol: %.02f\n", s.Name, edGalaxy.Sol.Distance(rpl.System.Coords))
+		if s.BriefInfo != nil {
+			txt += fmt.Sprintf(
 				"Population:        %s\n"+
-				"Security:          %s\n"+
-				"Allegiance:        %s\n"+
-				"State:             %s\n```",
-			s.Name,
-			edGalaxy.Sol.Distance(rpl.System.Coords),
-			humanString(s.BriefInfo.Population),
-			s.BriefInfo.Security,
-			s.BriefInfo.Allegiance,
-			s.BriefInfo.FactionState)
-		SendMessage(ds, channelID, txt)
+					"Security:          %s\n"+
+					"Allegiance:        %s\n"+
+					"State:             %s\n",
+				humanString(s.BriefInfo.Population),
+				s.BriefInfo.Security,
+				s.BriefInfo.Allegiance,
+				s.BriefInfo.FactionState)
+		}
+
+		SendMessage(ds, channelID, txt+"```")
 	}
 }
 
@@ -237,12 +268,45 @@ func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, 
 		return
 	}
 
+	d, err := t.giClient.GetDistance(pair[0], pair[1])
+
+	if err != nil {
+		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
+		return
+	}
+	txt := fmt.Sprintf("Distance %s/%s: %.02f LY\n",
+		pair[0], pair[1], d)
+	SendMessage(ds, channelID, txt)
+}
+
+func (t *talker) handleDistanceRequestOld(ds *discordgo.Session, channelID string, systemPair string) {
+	pair := strings.Split(systemPair, "/")
+	if len(pair) != 2 {
+		SendMessage(ds, channelID, "Expected 2 names separated by `/`")
+		return
+	}
+
+	if len(pair[0]) < 2 || len(pair[1]) < 2 {
+		SendMessage(ds, channelID, "System name must be at least 2 chars")
+		return
+	}
+
+	if _, ignored := t.ignoredSystems[strings.ToLower(pair[0])]; ignored {
+		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[0]))
+		return
+	}
+
+	if _, ignored := t.ignoredSystems[strings.ToLower(pair[1])]; ignored {
+		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[1]))
+		return
+	}
+
 	ch := make(edGalaxy.SystemSummaryReplyChan)
 
 	rpls := make([]*edGalaxy.SystemSummaryReply, 2)
 
-	go t.galaxyInfoCenter.SystemSymmaryByName(pair[0], ch)
-	go t.galaxyInfoCenter.SystemSymmaryByName(pair[1], ch)
+	go t.galaxyInfoCenter.SystemSummaryByName(pair[0], ch)
+	go t.galaxyInfoCenter.SystemSummaryByName(pair[1], ch)
 
 	hasErrors := false
 
