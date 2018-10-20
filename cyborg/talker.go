@@ -305,7 +305,7 @@ func (t *talker) handleStationsRequest(ds *discordgo.Session, channelID string, 
 		mxDistLen = 9
 	}
 	fmtStr := fmt.Sprintf("%%-%ds %%-%ds %%s\n", mxDistLen, mxDescrText)
-	txt += fmt.Sprintf(fmtStr, "Distance", "Type", "Name")
+	txt += fmt.Sprintf(fmtStr, "Distance", "Pad, Type", "Name")
 	for _, row := range rows {
 		txt += fmt.Sprintf(fmtStr, row[0], row[1], row[2])
 	}
