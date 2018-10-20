@@ -6,6 +6,7 @@ import (
 	"time"
 
 	pb "goed/api/protobuf-spec"
+	"goed/edGalaxy"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -18,15 +19,17 @@ func NewEDInfoCenterClient(addr string) *EDInfoCenterClient {
 	return &EDInfoCenterClient{addr: addr}
 }
 
-func (cc *EDInfoCenterClient) GetDistance(name1 string, name2 string) (float64, error) {
-	if( len(cc.addr) < 5 ){
-		return 0, errors.New("Galaxy information server is not configured")
+type rpccallproc func(pb.EDInfoCenterClient, context.Context)
+
+func callRpc(addr string, rpcCall rpccallproc) error {
+	if len(addr) < 5 {
+		return errors.New("Galaxy information server is not configured")
 	}
-	log.Printf("Dialing info center '%s'\n", cc.addr)
-	conn, err := grpc.Dial(cc.addr, grpc.WithInsecure())
+	log.Printf("Dialing info center '%s'\n", addr)
+	conn, err := grpc.Dial(addr, grpc.WithInsecure())
 	if err != nil {
 		log.Printf("did not connect: %v", err)
-		return 0, errors.New("Galaxy information server is not available")
+		return errors.New("Galaxy information server is not available")
 	}
 	defer conn.Close()
 	c := pb.NewEDInfoCenterClient(conn)
@@ -35,8 +38,26 @@ func (cc *EDInfoCenterClient) GetDistance(name1 string, name2 string) (float64, 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	rpl, err := c.GetDistance(ctx, &pb.SystemsDistanceRequest{Name1: name1, Name2: name2})
+	rpcCall(c, ctx)
+
+	return nil
+}
+
+func (cc *EDInfoCenterClient) GetDistance(name1 string, name2 string) (float64, error) {
+	var rpl *pb.SystemsDistanceReply
+	var cerr error = nil
+
+	distanceCall := func(c pb.EDInfoCenterClient, ctx context.Context) {
+		rpl, cerr = c.GetDistance(ctx, &pb.SystemsDistanceRequest{Name1: name1, Name2: name2})
+	}
+
+	err := callRpc(cc.addr, distanceCall)
+
 	if err != nil {
+		return 0, err
+	}
+
+	if cerr != nil {
 		log.Printf("Could not get distance: %v", err)
 		return 0, errors.New("Galaxy information server malfunction")
 	}
@@ -46,4 +67,62 @@ func (cc *EDInfoCenterClient) GetDistance(name1 string, name2 string) (float64, 
 	}
 
 	return rpl.GetDistance(), nil
+}
+
+func (cc *EDInfoCenterClient) GetSystemSummary(name string) (*edGalaxy.SystemSummary, error) {
+	var rpl *pb.SystemSummaryReply
+	var cerr error = nil
+
+	sumcall := func(c pb.EDInfoCenterClient, ctx context.Context) {
+		rpl, cerr = c.GetSystemSummary(ctx, &pb.SystemByNameRequest{Name: name})
+	}
+
+	err := callRpc(cc.addr, sumcall)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if cerr != nil {
+		log.Printf("Could not get system summary: %v", err)
+		return nil, errors.New("Galaxy information server malfunction")
+	}
+
+	if len(rpl.Error) != 0 {
+		return nil, errors.New(rpl.Error)
+	}
+
+	return pbSystemSummary2galaxy(rpl.GetSummary()), nil
+}
+
+func pbPoint3D2galaxy(p *pb.Point3D) *edGalaxy.Point3D {
+	if p == nil {
+		return nil
+	}
+	return &edGalaxy.Point3D{X: p.X, Y: p.Y, Z: p.Z}
+}
+
+func pmPopSystemBriefInfo2galaxy(i *pb.PopulatedSystemBriefInfo) *edGalaxy.BriefSystemInfo {
+	if i == nil {
+		return nil
+	}
+	return &edGalaxy.BriefSystemInfo{
+		Allegiance:   i.GetAllegiance(),
+		Government:   i.GetGovernment(),
+		Faction:      i.GetFaction(),
+		FactionState: i.GetFactionState(),
+		Population:   i.GetPopulation(),
+		Reserve:      i.GetReserve(),
+		Security:     i.GetSecurity(),
+		Economy:      i.GetEconomy()}
+}
+
+func pbSystemSummary2galaxy(s *pb.SystemSummary) *edGalaxy.SystemSummary {
+	if s == nil {
+		return nil
+	}
+	return &edGalaxy.SystemSummary{
+		Name:      s.GetName(),
+		Coords:    pbPoint3D2galaxy(s.GetCoords()),
+		BriefInfo: pmPopSystemBriefInfo2galaxy(s.GetPopSystemInfo())}
 }
