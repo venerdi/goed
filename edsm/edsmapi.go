@@ -13,10 +13,6 @@ import (
 	"time"
 )
 
-/*
- use https://mholt.github.io/json-to-go/
-*/
-
 func edsmSysInfo2galaxyBriefSystemInfo(si *EDSMSysInfo) *edGalaxy.BriefSystemInfo {
 	if si == nil {
 		return nil
