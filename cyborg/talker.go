@@ -7,6 +7,7 @@ import (
 	"goed/edgic"
 	"log"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"text/scanner"
@@ -93,6 +94,10 @@ func (t *talker) handleIncomingMessage(im *incoming_message) {
 	}
 	if strings.HasPrefix(ctx, "distance ") {
 		t.handleDistanceRequest(im.s, im.m.ChannelID, ctx[9:])
+		return
+	}
+	if strings.HasPrefix(ctx, "stations ") {
+		t.handleStationsRequest(im.s, im.m.ChannelID, ctx[9:])
 		return
 	}
 	if _, op := t.operators[im.m.Author.ID]; im.isDirect && op {
@@ -243,6 +248,70 @@ func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, sy
 	SendMessage(ds, channelID, txt+"```")
 }
 
+func getStationsTable(stations []*edGalaxy.DockableStationShortInfo) ([][]string, int, int) {
+	rows := make([][]string, len(stations))
+	mxDistSize := 0
+	mxDescrSize := 11
+	for i, st := range stations {
+		row := make([]string, 3)
+		rows[i] = row
+		row[0] = fmt.Sprintf("%.0f", st.Distance)
+		if len(row[0]) > mxDistSize {
+			mxDistSize = len(row[0])
+		}
+		if st.Planetary {
+			row[1] = fmt.Sprintf("%s, Planetary", st.LandingPad)
+			mxDescrSize = 13
+		} else {
+			row[1] = fmt.Sprintf("%s, Orbital", st.LandingPad)
+		}
+		row[2] = st.Name
+	}
+	return rows, mxDistSize, mxDescrSize
+}
+
+func (t *talker) handleStationsRequest(ds *discordgo.Session, channelID string, systemName string) {
+
+	if len(systemName) < 2 {
+		SendMessage(ds, channelID, "System name must be at least 2 chars")
+		return
+	}
+
+	if _, ignored := t.ignoredSystems[strings.ToLower(systemName)]; ignored {
+		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", systemName))
+		return
+	}
+
+	s, err := t.giClient.GetDockableStations(systemName)
+
+	if err != nil {
+		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
+		return
+	}
+
+	systemName = strings.ToTitle(strings.ToLower(systemName))
+	if len(s) == 0 {
+		SendMessage(ds, channelID, fmt.Sprintf("%s has no dockable stations", systemName))
+		return
+	}
+
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].Distance < s[j].Distance
+	})
+
+	txt := fmt.Sprintf("```\nDockable stations at %s:\n", systemName)
+	rows, mxDistLen, mxDescrText := getStationsTable(s)
+	if mxDistLen < 9 {
+		mxDistLen = 9
+	}
+	fmtStr := fmt.Sprintf("%%-%ds %%-%ds %%s\n", mxDistLen, mxDescrText)
+	txt += fmt.Sprintf(fmtStr, "Distance", "Type", "Name")
+	for _, row := range rows {
+		txt += fmt.Sprintf(fmtStr, row[0], row[1], row[2])
+	}
+	SendMessage(ds, channelID, txt+"```")
+}
+
 func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, systemPair string) {
 	pair := strings.Split(systemPair, "/")
 	if len(pair) != 2 {
@@ -275,7 +344,6 @@ func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, 
 		pair[0], pair[1], d)
 	SendMessage(ds, channelID, txt)
 }
-
 
 func (t *talker) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 

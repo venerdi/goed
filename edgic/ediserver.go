@@ -91,8 +91,19 @@ func galaxyBriefInfo2pbPopInfo(i *edGalaxy.BriefSystemInfo) *pb.PopulatedSystemB
 		Reserve:      i.Reserve,
 		Security:     i.Security,
 		Economy:      i.Economy}
-
 }
+
+func galaxyDockableStationShortInfo2pb(s *edGalaxy.DockableStationShortInfo) *pb.DockableStationShortInfo {
+	if s == nil {
+		return nil
+	}
+	return &pb.DockableStationShortInfo{
+		Name:       s.Name,
+		LandingPad: s.LandingPad,
+		Distance:   s.Distance,
+		Planetary:  s.Planetary}
+}
+
 func (p *grpcProcessor) GetDistance(ctx context.Context, in *pb.SystemsDistanceRequest) (*pb.SystemsDistanceReply, error) {
 	nm := in.GetName1()
 	c1, known := p.gi.getSystemCoords(nm)
@@ -127,7 +138,16 @@ func (p *grpcProcessor) GetDockableStations(ctx context.Context, in *pb.SystemBy
 	if eddbInfo == nil {
 		return &pb.DockableStationsReply{Error: "EDDB processor is not (yet) available"}, nil
 	}
-	return &pb.DockableStationsReply{Error: "Not implemented"}, nil
+	eddbStations, known := eddbInfo.GetDockableStations(in.GetName())
+	if !known {
+		return &pb.DockableStationsReply{Error: fmtUnknownSystem(in.GetName())}, nil
+	}
+	sz := len(eddbStations)
+	pbStations := make([]*pb.DockableStationShortInfo, sz)
+	for i := 0; i<sz; i++ {
+		pbStations[i] = galaxyDockableStationShortInfo2pb(eddbStations[i])
+	}
+	return &pb.DockableStationsReply{Stations: pbStations}, nil
 }
 
 func (s *GIServer) Serve() error {

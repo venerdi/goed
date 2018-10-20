@@ -33,6 +33,13 @@ type SystemSummary struct {
 	PrimaryStar *StarInfo
 }
 
+type DockableStationShortInfo struct {
+	Name       string
+	LandingPad string
+	Distance   float64
+	Planetary  bool
+}
+
 type SystemSummaryReply struct {
 	RequestedSystemName string
 	System              *SystemSummary

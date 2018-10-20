@@ -66,7 +66,7 @@ func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
 			m := make(map[int]*StationRecordV5)
 			system.stations = &m
 		}
-		(*(system.stations))[station.Id] = station 
+		(*(system.stations))[station.Id] = station
 	}
 	log.Println("Ready")
 	return &EDDBInfo{commodities: commodities, systems: systems, stations: stations, systemsByName: &systemsByName}, nil
@@ -111,6 +111,17 @@ func eddb2galaxy(s *SystemRecordV5) *edGalaxy.SystemSummary {
 	}
 }
 
+func eddbStation2galaxyDockableStationShortInfo(s *StationRecordV5) *edGalaxy.DockableStationShortInfo {
+	if s == nil {
+		return nil
+	}
+	return &edGalaxy.DockableStationShortInfo{
+		Name:       s.Name,
+		LandingPad: s.MaxLandingPad,
+		Distance:   s.DistanceToStar,
+		Planetary:  s.Planerary}
+}
+
 func (i *EDDBInfo) GetSystemByName(sName string) (*SystemRecordV5, bool) {
 	s, exists := (*i.systemsByName)[strings.ToUpper(sName)]
 	return s, exists
@@ -122,6 +133,21 @@ func (i *EDDBInfo) GetSystemCoordsByName(sName string) (*edGalaxy.Point3D, bool)
 		return &edGalaxy.Point3D{X: s.X, Y: s.Y, Z: s.Z}, true
 	}
 	return nil, false
+}
+func (i *EDDBInfo) GetDockableStations(sName string) ([]*edGalaxy.DockableStationShortInfo, bool) {
+	s, exists := i.GetSystemByName(sName)
+	if !exists {
+		return nil, false
+	}
+	sInfos := make([]*edGalaxy.DockableStationShortInfo, 0)
+	if s.stations != nil {
+		for _, st := range *(s.stations) {
+			if st.HasDocking {
+				sInfos = append(sInfos, eddbStation2galaxyDockableStationShortInfo(st))
+			}
+		}
+	}
+	return sInfos, true
 }
 
 func (i *EDDBInfo) FindCommodity(cName string, sName string, minSupply int, minPad string, allowPlanetary bool, maxLocalDist float64, maxDistance float64, maxUpdateAge int64) ([]*SuitablePoint, error) {
