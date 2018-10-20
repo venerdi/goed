@@ -25,6 +25,9 @@ func init() {
 }
 
 func Distance(p1, p2 *Point3D) float64 {
+	if p1 == nil || p2 == nil {
+		return math.NaN()
+	}
 	dx := p1.X - p2.X
 	dy := p1.Y - p2.Y
 	dz := p1.Z - p2.Z
