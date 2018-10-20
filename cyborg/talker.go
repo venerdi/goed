@@ -24,15 +24,13 @@ type talker struct {
 	incomingMessages chan *incoming_message
 	giClient         *edgic.EDInfoCenterClient
 	ignoredSystems   map[string]bool
-	galaxyInfoCenter *edGalaxy.GalaxyInfoCenter
 }
 
-func newTalker(ops []string, ver string, giClient *edgic.EDInfoCenterClient, galaxyInfoCenter *edGalaxy.GalaxyInfoCenter, ignoredSystems []string) *talker {
+func newTalker(ops []string, ver string, giClient *edgic.EDInfoCenterClient, ignoredSystems []string) *talker {
 	t := &talker{
 		version:          ver,
 		operators:        make(map[string]int),
 		incomingMessages: make(chan *incoming_message),
-		galaxyInfoCenter: galaxyInfoCenter,
 		giClient:         giClient,
 		ignoredSystems:   make(map[string]bool),
 	}
@@ -222,28 +220,27 @@ func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, sy
 		return
 	}
 
-	ch := make(edGalaxy.SystemSummaryReplyChan)
-	go t.galaxyInfoCenter.SystemSummaryByName(systemName, ch)
-	rpl := <-ch
-	if rpl.Err != nil {
-		SendMessage(ds, channelID, fmt.Sprintf("Couldn't get system info for %s\n%v\n", systemName, rpl.Err))
-	} else {
-		s := rpl.System
-		txt := fmt.Sprintf("```\n%s\nDistance from Sol: %.02f\n", s.Name, edGalaxy.Sol.Distance(rpl.System.Coords))
-		if s.BriefInfo != nil {
-			txt += fmt.Sprintf(
-				"Population:        %s\n"+
-					"Security:          %s\n"+
-					"Allegiance:        %s\n"+
-					"State:             %s\n",
-				humanString(s.BriefInfo.Population),
-				s.BriefInfo.Security,
-				s.BriefInfo.Allegiance,
-				s.BriefInfo.FactionState)
-		}
+	s, err := t.giClient.GetSystemSummary(systemName)
 
-		SendMessage(ds, channelID, txt+"```")
+	if err != nil {
+		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
+		return
 	}
+
+	txt := fmt.Sprintf("```\n%s\nDistance from Sol: %.02f\n", s.Name, edGalaxy.Sol.Distance(s.Coords))
+	if s.BriefInfo != nil {
+		txt += fmt.Sprintf(
+			"Population:        %s\n"+
+				"Security:          %s\n"+
+				"Allegiance:        %s\n"+
+				"State:             %s\n",
+			humanString(s.BriefInfo.Population),
+			s.BriefInfo.Security,
+			s.BriefInfo.Allegiance,
+			s.BriefInfo.FactionState)
+	}
+
+	SendMessage(ds, channelID, txt+"```")
 }
 
 func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, systemPair string) {
@@ -279,61 +276,6 @@ func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, 
 	SendMessage(ds, channelID, txt)
 }
 
-func (t *talker) handleDistanceRequestOld(ds *discordgo.Session, channelID string, systemPair string) {
-	pair := strings.Split(systemPair, "/")
-	if len(pair) != 2 {
-		SendMessage(ds, channelID, "Expected 2 names separated by `/`")
-		return
-	}
-
-	if len(pair[0]) < 2 || len(pair[1]) < 2 {
-		SendMessage(ds, channelID, "System name must be at least 2 chars")
-		return
-	}
-
-	if _, ignored := t.ignoredSystems[strings.ToLower(pair[0])]; ignored {
-		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[0]))
-		return
-	}
-
-	if _, ignored := t.ignoredSystems[strings.ToLower(pair[1])]; ignored {
-		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[1]))
-		return
-	}
-
-	ch := make(edGalaxy.SystemSummaryReplyChan)
-
-	rpls := make([]*edGalaxy.SystemSummaryReply, 2)
-
-	go t.galaxyInfoCenter.SystemSummaryByName(pair[0], ch)
-	go t.galaxyInfoCenter.SystemSummaryByName(pair[1], ch)
-
-	hasErrors := false
-
-	for i := 0; i < 2; i++ {
-		rpl := <-ch
-		if rpl.Err != nil {
-			SendMessage(ds, channelID, fmt.Sprintf("Couldn't get system info for %s\n%v\n", rpl.RequestedSystemName, rpl.Err))
-			hasErrors = true
-		}
-		rpls[i] = rpl
-	}
-	if hasErrors || rpls[0].System == nil || rpls[1].System == nil {
-		return
-	}
-	if rpls[0].System.Coords == nil {
-		SendMessage(ds, channelID, fmt.Sprintf("Couldn't get system coordinates for %s\n", rpls[0].RequestedSystemName))
-		return
-	}
-	if rpls[1].System.Coords == nil {
-		SendMessage(ds, channelID, fmt.Sprintf("Couldn't get system coordinates for %s\n", rpls[1].RequestedSystemName))
-		return
-	}
-	txt := fmt.Sprintf("Distance %s/%s is %.02f\n",
-		rpls[0].System.Name, rpls[1].System.Name,
-		rpls[0].System.Coords.Distance(rpls[1].System.Coords))
-	SendMessage(ds, channelID, txt)
-}
 
 func (t *talker) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
