@@ -33,7 +33,7 @@ type grpcProcessor struct {
 }
 
 func NewGIServer(cfg GrpcServerConf) *GIServer {
-	return &GIServer{cfg: cfg, edsmc: edsm.NewEDSMConnector(3) }
+	return &GIServer{cfg: cfg, edsmc: edsm.NewEDSMConnector(3)}
 }
 
 func (s *GIServer) SetEDDBData(data *eddb.EDDBInfo) {
@@ -41,14 +41,22 @@ func (s *GIServer) SetEDDBData(data *eddb.EDDBInfo) {
 }
 
 func (s *GIServer) getSystemCoords(systemName string) (*edGalaxy.Point3D, bool) {
+	ss, known := s.getSystemSummaryByName(systemName)
+	if !known {
+		return nil, false
+	}
+	return ss.Coords, true
+}
+
+func (s *GIServer) getSystemSummaryByName(systemName string) (*edGalaxy.SystemSummary, bool) {
 	eddbInfo := s.eddbInfo.Load().(*eddb.EDDBInfo)
 	if eddbInfo != nil {
-		c, ok := eddbInfo.GetSystemCoordsByName(systemName)
+		info, ok := eddbInfo.SystemSummaryByName(systemName)
 		if ok {
-			return c, true
+			return info, true
 		}
 	}
-	
+
 	ch := make(edGalaxy.SystemSummaryReplyChan)
 	go s.edsmc.SystemSummaryByName(systemName, ch)
 	rpl := <-ch
@@ -56,25 +64,53 @@ func (s *GIServer) getSystemCoords(systemName string) (*edGalaxy.Point3D, bool) 
 		log.Printf("EDSM request failed: %v", rpl.Err)
 		return nil, false
 	}
-	return rpl.System.Coords, true
+	return rpl.System, true
 }
 
+func fmtUnknownSystem(nm string) string {
+	return fmt.Sprintf("System '%s' is not known to me", nm)
+}
+
+func galaxyPoint2pb(p *edGalaxy.Point3D) *pb.Point3D {
+	return &pb.Point3D{X: p.X, Y: p.Y, Z: p.Z}
+}
 func (p *grpcProcessor) GetDistance(ctx context.Context, in *pb.SystemsDistanceRequest) (*pb.SystemsDistanceReply, error) {
 	nm := in.GetName1()
 	c1, known := p.gi.getSystemCoords(nm)
 	if !known {
-		return &pb.SystemsDistanceReply{Error: fmt.Sprintf("System '%s' is not known to me", nm)}, nil
+		return &pb.SystemsDistanceReply{Error: fmtUnknownSystem(nm)}, nil
 	}
 	nm = in.GetName2()
 	c2, known := p.gi.getSystemCoords(nm)
 	if !known {
-		return &pb.SystemsDistanceReply{Error: fmt.Sprintf("System '%s' is not known to me", nm)}, nil
+		return &pb.SystemsDistanceReply{Error: fmtUnknownSystem(nm)}, nil
 	}
 	return &pb.SystemsDistanceReply{Distance: c1.Distance(c2)}, nil
 }
 
 func (p *grpcProcessor) GetSystemSummary(ctx context.Context, in *pb.SystemByNameRequest) (*pb.SystemSummaryReply, error) {
-	return &pb.SystemSummaryReply{Error: "Not implemented"}, nil
+	nm := in.GetName()
+	ss, known := p.gi.getSystemSummaryByName(nm)
+	if !known {
+		return &pb.SystemSummaryReply{Error: fmtUnknownSystem(nm)}, nil
+	}
+	pbps := &pb.PopulatedSystemBriefInfo{
+		Allegiance:   ss.BriefInfo.Allegiance,
+		Government:   ss.BriefInfo.Government,
+		Faction:      ss.BriefInfo.Faction,
+		FactionState: ss.BriefInfo.FactionState,
+		Population:   ss.BriefInfo.Population,
+		Reserve:      ss.BriefInfo.Reserve,
+		Security:     ss.BriefInfo.Security,
+		Economy:      ss.BriefInfo.Economy,
+	}
+
+	pbss := pb.SystemSummary{
+		Name:          ss.Name,
+		Coords:        galaxyPoint2pb(ss.Coords),
+		PopSystemInfo: pbps,
+	}
+	return &pb.SystemSummaryReply{Summary: &pbss}, nil
 }
 
 func (p *grpcProcessor) GetDockableStations(ctx context.Context, in *pb.SystemByNameRequest) (*pb.DockableStationsReply, error) {

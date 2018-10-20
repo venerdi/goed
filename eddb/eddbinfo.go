@@ -2,12 +2,12 @@ package eddb
 
 import (
 	"errors"
+	"goed/edGalaxy"
 	"log"
 	"math"
 	"sort"
 	"strings"
 	"time"
-	"goed/edGalaxy"
 )
 
 type EDDBInfo struct {
@@ -52,8 +52,8 @@ func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
 	for _, sys := range *systems {
 		systemsByName[strings.ToUpper(sys.Name)] = sys
 	}
-	
-	return &EDDBInfo{commodities: commodities, systems: systems, stations: stations, systemsByName : &systemsByName}, nil
+
+	return &EDDBInfo{commodities: commodities, systems: systems, stations: stations, systemsByName: &systemsByName}, nil
 }
 
 func (i *EDDBInfo) getCommodity(cName string) (*CommodityRecordV5, bool) {
@@ -66,6 +66,35 @@ func (i *EDDBInfo) getCommodity(cName string) (*CommodityRecordV5, bool) {
 	return nil, false
 }
 
+func (i *EDDBInfo) SystemSummaryByName(sName string) (*edGalaxy.SystemSummary, bool) {
+	s, exists := (*i.systemsByName)[strings.ToUpper(sName)]
+	if !exists {
+		return nil, false
+	}
+	return eddb2galaxy(s), exists
+}
+
+func eddb2galaxy(s *SystemRecordV5) *edGalaxy.SystemSummary {
+	if s == nil {
+		return nil
+	}
+	return &edGalaxy.SystemSummary{
+		Name:   s.Name,
+		EDDBid: int64(s.Id),
+		Coords: &edGalaxy.Point3D{X: s.X, Y: s.Y, Z: s.Z},
+		BriefInfo: &edGalaxy.BriefSystemInfo{
+			Allegiance:   s.Alegiance,
+			Government:   s.Government,
+			Faction:      s.ControllingMinorFactionName,
+			FactionState: s.State,
+			Population:   s.Population,
+			Reserve:      s.ReserveType,
+			Security:     s.Security,
+			Economy:      s.PrimaryEconomy},
+		PrimaryStar: nil,
+	}
+}
+
 func (i *EDDBInfo) GetSystemByName(sName string) (*SystemRecordV5, bool) {
 	s, exists := (*i.systemsByName)[strings.ToUpper(sName)]
 	return s, exists
@@ -74,7 +103,7 @@ func (i *EDDBInfo) GetSystemByName(sName string) (*SystemRecordV5, bool) {
 func (i *EDDBInfo) GetSystemCoordsByName(sName string) (*edGalaxy.Point3D, bool) {
 	s, ok := i.GetSystemByName(sName)
 	if ok {
-		return &edGalaxy.Point3D{ X: s.X, Y: s.Y, Z: s.Z}, true
+		return &edGalaxy.Point3D{X: s.X, Y: s.Y, Z: s.Z}, true
 	}
 	return nil, false
 }
