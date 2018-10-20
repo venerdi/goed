@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 	"goed/edgic"
 	"goed/eddb"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -38,6 +39,14 @@ func loadConfig(path string) (*EDInfoCenterConf, error) {
 	return &cfg, err
 }
 func main() {
+	logFile, err := os.OpenFile("edicenter.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
+	if err == nil {
+		mw := io.MultiWriter(os.Stdout, logFile)
+		log.SetOutput(mw)
+	} else {
+		log.Println("Failer to create log file %v", err)
+	}
+
 	flag.Parse()
 	cfg, err := loadConfig(flag.Arg(0))
 	if err != nil {
