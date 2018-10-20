@@ -12,6 +12,7 @@ import (
 	pb "goed/api/protobuf-spec"
 	"goed/edGalaxy"
 	"goed/eddb"
+	"goed/edsm"
 	"sync/atomic"
 )
 
@@ -22,6 +23,7 @@ type GrpcServerConf struct {
 
 type GIServer struct {
 	eddbInfo atomic.Value
+	edsmc    *edsm.EDSMConnector
 	cfg      GrpcServerConf
 	s        *grpc.Server
 }
@@ -31,7 +33,7 @@ type grpcProcessor struct {
 }
 
 func NewGIServer(cfg GrpcServerConf) *GIServer {
-	return &GIServer{cfg: cfg}
+	return &GIServer{cfg: cfg, edsmc: edsm.NewEDSMConnector(3) }
 }
 
 func (s *GIServer) SetEDDBData(data *eddb.EDDBInfo) {
@@ -46,7 +48,15 @@ func (s *GIServer) getSystemCoords(systemName string) (*edGalaxy.Point3D, bool) 
 			return c, true
 		}
 	}
-	return nil, false
+	
+	ch := make(edGalaxy.SystemSummaryReplyChan)
+	go s.edsmc.SystemSummaryByName(systemName, ch)
+	rpl := <-ch
+	if rpl.Err != nil {
+		log.Printf("EDSM request failed: %v", rpl.Err)
+		return nil, false
+	}
+	return rpl.System.Coords, true
 }
 
 func (p *grpcProcessor) GetDistance(ctx context.Context, in *pb.SystemsDistanceRequest) (*pb.SystemsDistanceReply, error) {
