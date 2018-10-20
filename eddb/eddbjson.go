@@ -83,6 +83,7 @@ type SystemRecordV5 struct {
 	ReserveTypeId               int                            `json:"reserve_type_id"`
 	ReserveType                 string                         `json:"reserve_type"`
 	FactionPresences            []MinorFactionPresenceRecordV5 `json:"minor_faction_presences"`
+	stations                    *map[int]*StationRecordV5
 }
 
 type StationRecordV5 struct {

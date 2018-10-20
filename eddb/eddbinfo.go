@@ -25,6 +25,7 @@ type SuitablePoint struct {
 }
 
 func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
+	log.Println("Reading eddb galaxy...")
 	commodities, err := ReadCommoditiesFile(dataCache.Commodities.LocalFile)
 	if err != nil {
 		log.Printf("Failed to load commodities: %v", err)
@@ -35,24 +36,39 @@ func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
 		log.Printf("Failed to load systems: %v", err)
 		return nil, err
 	}
+	log.Printf("Got %d systems\n", len(*systems))
+
 	stations, err := ReadStationsFile(dataCache.Stations.LocalFile)
 	if err != nil {
 		log.Printf("Failed to load stations: %v", err)
 		return nil, err
 	}
-	log.Printf("Got %d systems\n", len(*systems))
 	log.Printf("Got %d stations\n", len(*stations))
-
+	log.Println("Binding commodities...")
 	err = BindStations(dataCache.Listings.LocalFile, commodities, stations)
 	if err != nil {
 		log.Printf("Unexpected error binding stations: %v\n", err)
 		return nil, err
 	}
+	log.Println("Mapping")
 	systemsByName := make(map[string]*SystemRecordV5)
 	for _, sys := range *systems {
 		systemsByName[strings.ToUpper(sys.Name)] = sys
 	}
 
+	for _, station := range *stations {
+		system, exists := (*systems)[station.SystemId]
+		if !exists {
+			log.Printf("Stations %d can not be mapped to system %d\n", station.Id, station.SystemId)
+			continue
+		}
+		if system.stations == nil {
+			m := make(map[int]*StationRecordV5)
+			system.stations = &m
+		}
+		(*(system.stations))[station.Id] = station 
+	}
+	log.Println("Ready")
 	return &EDDBInfo{commodities: commodities, systems: systems, stations: stations, systemsByName: &systemsByName}, nil
 }
 
