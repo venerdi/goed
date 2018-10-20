@@ -68,7 +68,7 @@ func (p *grpcProcessor) GetSystemSummary(ctx context.Context, in *pb.SystemByNam
 }
 
 func (p *grpcProcessor) GetDockableStations(ctx context.Context, in *pb.SystemByNameRequest) (*pb.DockableStationsReply, error) {
-	eddbInfo := s.eddbInfo.Load().(*eddb.EDDBInfo)
+	eddbInfo := p.gi.eddbInfo.Load().(*eddb.EDDBInfo)
 	if eddbInfo == nil {
 		return &pb.DockableStationsReply{Error: "EDDB processor is not (yet) available"}, nil
 	}
