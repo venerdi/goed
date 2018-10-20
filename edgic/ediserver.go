@@ -72,7 +72,26 @@ func fmtUnknownSystem(nm string) string {
 }
 
 func galaxyPoint2pb(p *edGalaxy.Point3D) *pb.Point3D {
+	if p == nil {
+		return nil
+	}
 	return &pb.Point3D{X: p.X, Y: p.Y, Z: p.Z}
+}
+
+func galaxyBriefInfo2pbPopInfo(i *edGalaxy.BriefSystemInfo) *pb.PopulatedSystemBriefInfo {
+	if i == nil {
+		return nil
+	}
+	return &pb.PopulatedSystemBriefInfo{
+		Allegiance:   i.Allegiance,
+		Government:   i.Government,
+		Faction:      i.Faction,
+		FactionState: i.FactionState,
+		Population:   i.Population,
+		Reserve:      i.Reserve,
+		Security:     i.Security,
+		Economy:      i.Economy}
+
 }
 func (p *grpcProcessor) GetDistance(ctx context.Context, in *pb.SystemsDistanceRequest) (*pb.SystemsDistanceReply, error) {
 	nm := in.GetName1()
@@ -94,22 +113,12 @@ func (p *grpcProcessor) GetSystemSummary(ctx context.Context, in *pb.SystemByNam
 	if !known {
 		return &pb.SystemSummaryReply{Error: fmtUnknownSystem(nm)}, nil
 	}
-	pbps := &pb.PopulatedSystemBriefInfo{
-		Allegiance:   ss.BriefInfo.Allegiance,
-		Government:   ss.BriefInfo.Government,
-		Faction:      ss.BriefInfo.Faction,
-		FactionState: ss.BriefInfo.FactionState,
-		Population:   ss.BriefInfo.Population,
-		Reserve:      ss.BriefInfo.Reserve,
-		Security:     ss.BriefInfo.Security,
-		Economy:      ss.BriefInfo.Economy,
-	}
 
 	pbss := pb.SystemSummary{
 		Name:          ss.Name,
 		Coords:        galaxyPoint2pb(ss.Coords),
-		PopSystemInfo: pbps,
-	}
+		PopSystemInfo: galaxyBriefInfo2pbPopInfo(ss.BriefInfo)}
+
 	return &pb.SystemSummaryReply{Summary: &pbss}, nil
 }
 
