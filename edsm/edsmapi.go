@@ -3,7 +3,7 @@ package edsm
 import (
 	"encoding/json"
 	"errors"
-	"goed/pkg/edGalaxy"
+	"goed/edGalaxy"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,32 +13,24 @@ import (
 	"time"
 )
 
-type EDSMSysInfo struct {
-	Allegiance    string `json:"allegiance"`
-	Government    string `json:"government"`
-	Faction       string `json:"faction"`
-	FactionState  string `json:"factionState"`
-	Population    int64  `json:"population"`
-	Reserve       string `json:"reserve"`
-	Security      string `json:"security"`
-	Economy       string `json:"economy"`
-	SecondEconomy string `json:"secondEconomy"`
-}
+/*
+ use https://mholt.github.io/json-to-go/
+*/
 
-type EDSMStarInfo struct {
-	Type        string `json:"type"`
-	Name        string `json:"name"`
-	IsScoopable bool   `json:"isScoopable"`
-}
-
-type EDSMSystemV1 struct {
-	Name         string           `json:"name"`
-	EDSMid       int64            `json:"id"`
-	EDSMid64     int64            `json:"id64"`
-	Coords       edGalaxy.Point3D `json:"coords"`
-	CoordsLocked bool             `json:"coordsLocked"`
-	SystemInfo   EDSMSysInfo      `json:"information,omitempty"`
-	PrimaryStar  EDSMStarInfo     `json:"primaryStar"`
+func edsmSysInfo2galaxyBriefSystemInfo(si *EDSMSysInfo) *edGalaxy.BriefSystemInfo {
+	if si == nil {
+		return nil
+	}
+	return &edGalaxy.BriefSystemInfo{
+		Allegiance:   si.Allegiance,
+		Government:   si.Government,
+		Faction:      si.Faction,
+		FactionState: si.FactionState,
+		Population:   si.Population,
+		Reserve:      si.Reserve,
+		Security:     si.Security,
+		Economy:      si.Economy,
+	}
 }
 
 func edsmSystem2GalaxySummary(eds *EDSMSystemV1) *edGalaxy.SystemSummary {
@@ -46,21 +38,12 @@ func edsmSystem2GalaxySummary(eds *EDSMSystemV1) *edGalaxy.SystemSummary {
 		return nil
 	}
 	return &edGalaxy.SystemSummary{
-		Name:     eds.Name,
-		EDSMid:   eds.EDSMid,
-		EDSMid64: eds.EDSMid64,
-		EDDBid:   0,
-		Coords:   &eds.Coords,
-		BriefInfo: &edGalaxy.BriefSystemInfo{
-			Allegiance:   eds.SystemInfo.Allegiance,
-			Government:   eds.SystemInfo.Government,
-			Faction:      eds.SystemInfo.Faction,
-			FactionState: eds.SystemInfo.FactionState,
-			Population:   eds.SystemInfo.Population,
-			Reserve:      eds.SystemInfo.Reserve,
-			Security:     eds.SystemInfo.Security,
-			Economy:      eds.SystemInfo.Economy,
-		},
+		Name:      eds.Name,
+		EDSMid:    eds.EDSMid,
+		EDSMid64:  eds.EDSMid64,
+		EDDBid:    0,
+		Coords:    eds.Coords,
+		BriefInfo: edsmSysInfo2galaxyBriefSystemInfo(eds.SystemInfo),
 		PrimaryStar: &edGalaxy.StarInfo{
 			Name:        eds.PrimaryStar.Name,
 			Type:        eds.PrimaryStar.Type,
@@ -122,7 +105,7 @@ func (c *EDSMConnector) Close() {
 	c.tr.CloseIdleConnections()
 }
 
-func (c *EDSMConnector) SystemSymmaryByName(systemName string, rplChannel edGalaxy.SystemSummaryReplyChan) {
+func (c *EDSMConnector) SystemSummaryByName(systemName string, rplChannel edGalaxy.SystemSummaryReplyChan) {
 	rplC := make(chan *FetchEDSMSystemReply)
 	go c.GetSystemInfo(systemName, rplC)
 	rpl := <-rplC
@@ -162,11 +145,11 @@ func (c *EDSMConnector) fetchSystem(systemName string) (*EDSMSystemV1, error) {
 	}
 	resp.Body.Close()
 
-	sbody := string(body)
-	if idx := strings.Index(sbody, `"information":[]`); idx != -1 {
-		log.Printf("Stripping empty information from: \n%s\n", sbody)
-		body = append(body[:idx], body[idx+17:]...)
-	}
+	//	sbody := string(body)
+	//	if idx := strings.Index(sbody, `"information":[]`); idx != -1 {
+	//		log.Printf("Stripping empty information from: \n%s\n", sbody)
+	//		body = append(body[:idx], body[idx+17:]...)
+	//	}
 
 	if len(body) < 10 {
 		log.Printf("Failed parse system %s (data too short): %s\n", systemName, string(body))
@@ -176,14 +159,36 @@ func (c *EDSMConnector) fetchSystem(systemName string) (*EDSMSystemV1, error) {
 		return nil, errors.New("System is not known of EDSM failure")
 	}
 
-	var si EDSMSystemV1
+	var si EDSMSystemV1_T
 	if err = json.Unmarshal(body, &si); err != nil {
 		log.Printf("Failed parse system %s data %s: %v\n", systemName, string(body), err)
 		return nil, err
 	}
 
 	log.Println(string(body))
-	return &si, nil
+	log.Printf("Checking interface: its a %v\n", si.SI)
+	return temp2publicSysteinfo(&si), nil
+}
+
+func temp2publicSysteinfo(t *EDSMSystemV1_T) *EDSMSystemV1 {
+	rv := &EDSMSystemV1{
+		Name:         t.Name,
+		EDSMid:       t.EDSMid,
+		EDSMid64:     t.EDSMid64,
+		Coords:       t.Coords.Clone(),
+		CoordsLocked: t.CoordsLocked,
+		PrimaryStar:  &t.PrimaryStar,
+	}
+
+	var si EDSMSysInfo
+
+	if err := json.Unmarshal(t.SI, &si); err == nil {
+		rv.SystemInfo = &si
+	} else {
+		rv.SystemInfo = nil
+	}
+
+	return rv
 }
 
 func (c *EDSMConnector) GetSystemInfo(systemName string, rplChannel chan *FetchEDSMSystemReply) {

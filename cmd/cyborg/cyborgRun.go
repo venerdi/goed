@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/spf13/viper"
-	"goed/pkg/cyborg"
+	"goed/cyborg"
 	"io"
 	"io/ioutil"
 	"log"
@@ -19,6 +19,9 @@ import (
 
 type CyborgBotConfig struct {
 	DiscordConf cyborg.CyborgBotDiscordConfig
+	GalaxyInfoCenter struct {
+		Address string
+	}
 }
 
 func (c *CyborgBotConfig) check() error {
@@ -71,7 +74,7 @@ func main() {
 		return
 	}
 
-	bot := cyborg.NewCybordBot(&cfg.DiscordConf)
+	bot := cyborg.NewCybordBot(&cfg.DiscordConf, cfg.GalaxyInfoCenter.Address)
 	err = bot.Connect(loglevel)
 
 	if err != nil {

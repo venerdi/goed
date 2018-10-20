@@ -35,18 +35,18 @@ type SystemSummary struct {
 
 type SystemSummaryReply struct {
 	RequestedSystemName string
-	System *SystemSummary
-	Err    error
+	System              *SystemSummary
+	Err                 error
 }
 
 type SystemSummaryReplyChan chan *SystemSummaryReply
 
-type SystemSymmaryByNameProvider interface {
-	SystemSymmaryByName(string, SystemSummaryReplyChan)
+type SystemSummaryByNameProvider interface {
+	SystemSummaryByName(string, SystemSummaryReplyChan)
 }
 
 type summary_by_name_provider_info struct {
-	provider SystemSymmaryByNameProvider
+	provider SystemSummaryByNameProvider
 	priority int
 }
 
@@ -61,7 +61,7 @@ func NewGalaxyInfoCenter() *GalaxyInfoCenter {
 	}
 }
 
-func (ic *GalaxyInfoCenter) AddSummaryProvider(name string, provider SystemSymmaryByNameProvider) {
+func (ic *GalaxyInfoCenter) AddSummaryProvider(name string, provider SystemSummaryByNameProvider) {
 	ic.Lock()
 	ic.summaryProviders[name] = summary_by_name_provider_info{
 		provider: provider,
@@ -70,10 +70,10 @@ func (ic *GalaxyInfoCenter) AddSummaryProvider(name string, provider SystemSymma
 	ic.Unlock()
 }
 
-func (ic *GalaxyInfoCenter) SystemSymmaryByName(name string, ch SystemSummaryReplyChan) {
+func (ic *GalaxyInfoCenter) SystemSummaryByName(name string, ch SystemSummaryReplyChan) {
 	p := ic.getProvider()
 	if p != nil {
-		p.SystemSymmaryByName(name, ch)
+		p.SystemSummaryByName(name, ch)
 	} else {
 		log.Println("hmm.. No info providers")
 		go func() {
@@ -85,7 +85,7 @@ func (ic *GalaxyInfoCenter) SystemSymmaryByName(name string, ch SystemSummaryRep
 	}
 }
 
-func (ic *GalaxyInfoCenter) getProvider() SystemSymmaryByNameProvider {
+func (ic *GalaxyInfoCenter) getProvider() SystemSummaryByNameProvider {
 	ic.RLock()
 	defer ic.RUnlock()
 
