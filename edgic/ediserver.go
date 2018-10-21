@@ -164,7 +164,7 @@ func (s *GIServer) Serve() error {
 	pb.RegisterEDInfoCenterServer(s.s, &grpcProcessor{gi: s})
 	reflection.Register(s.s)
 
-	log.Printf("GIServer grps: serving on %s\n", s.cfg.Port)
+	log.Printf("GIServer grpc: serving on %s\n", s.cfg.Port)
 	if err := s.s.Serve(lis); err != nil {
 		log.Printf("failed to serve: %v", err)
 	}
