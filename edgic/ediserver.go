@@ -71,6 +71,10 @@ func fmtUnknownSystem(nm string) string {
 	return fmt.Sprintf("System '%s' is not known to me", nm)
 }
 
+func fmtNonHabitableSystem(nm string) string {
+	return fmt.Sprintf("System '%s' is not habitable", nm)
+}
+
 func galaxyPoint2pb(p *edGalaxy.Point3D) *pb.Point3D {
 	if p == nil {
 		return nil
@@ -140,7 +144,7 @@ func (p *grpcProcessor) GetDockableStations(ctx context.Context, in *pb.SystemBy
 	}
 	eddbStations, known := eddbInfo.GetDockableStations(in.GetName())
 	if !known {
-		return &pb.DockableStationsReply{Error: fmtUnknownSystem(in.GetName())}, nil
+		return &pb.DockableStationsReply{Error: fmtNonHabitableSystem(in.GetName())}, nil
 	}
 	sz := len(eddbStations)
 	pbStations := make([]*pb.DockableStationShortInfo, sz)
