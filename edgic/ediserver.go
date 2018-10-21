@@ -1,6 +1,7 @@
 package edgic
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	empty "github.com/golang/protobuf/ptypes/empty"
 
 	pb "goed/api/protobuf-spec"
 	"goed/edGalaxy"
@@ -97,6 +99,28 @@ func galaxyBriefInfo2pbPopInfo(i *edGalaxy.BriefSystemInfo) *pb.PopulatedSystemB
 		Economy:      i.Economy}
 }
 
+func galaxyShortFactionState2pb(s *edGalaxy.ShortFactionState) *pb.ShortFactionState {
+	if s == nil {
+		return nil
+	}
+	return &pb.ShortFactionState{ Name: s.Name, State: s.State, Allegiance: s.Allegiance }
+}
+
+func galaxyInterestingSystem4State2pb(s *edGalaxy.InterestingSystem4State) *pb.InterestingSystem4State {
+	if s == nil {
+		return nil
+	}
+	pbFactions := make([]*pb.ShortFactionState, len(s.Factions))
+	for i, f := range s.Factions {
+		pbFactions[i] = galaxyShortFactionState2pb(f)
+	}
+	return &pb.InterestingSystem4State{
+		Name: s.Name,
+		Population: s.Population,
+		Coords: galaxyPoint2pb( s.Coords ),
+		FactionStates: pbFactions}
+}
+
 func galaxyDockableStationShortInfo2pb(s *edGalaxy.DockableStationShortInfo) *pb.DockableStationShortInfo {
 	if s == nil {
 		return nil
@@ -137,6 +161,25 @@ func (p *grpcProcessor) GetSystemSummary(ctx context.Context, in *pb.SystemByNam
 	return &pb.SystemSummaryReply{Summary: &pbss}, nil
 }
 
+func (p *grpcProcessor) GetHumanWorldStat(ctx context.Context, _ *empty.Empty) (*pb.HumanWorldStat, error) {
+	eddbInfo := p.gi.eddbInfo.Load().(*eddb.EDDBInfo)
+	if eddbInfo == nil {
+		return nil, errors.New("EDDB processor is not (yet) available")
+	}
+	
+	ws := eddbInfo.GetHumanWorldStat()
+	if ws == nil {
+		log.Println("Unexpected nil stat\n")
+		return &pb.HumanWorldStat{}, nil
+	}
+	return &pb.HumanWorldStat{
+		Systems:       ws.Systems,
+		Stations:      ws.Stations,
+		Factions:      ws.Factions,
+		HumanFactions: ws.HumanFactions,
+		Population:    ws.Population}, nil
+}
+
 func (p *grpcProcessor) GetDockableStations(ctx context.Context, in *pb.SystemByNameRequest) (*pb.DockableStationsReply, error) {
 	eddbInfo := p.gi.eddbInfo.Load().(*eddb.EDDBInfo)
 	if eddbInfo == nil {
@@ -158,6 +201,34 @@ func (p *grpcProcessor) GetDockableStations(ctx context.Context, in *pb.SystemBy
 		pbStations[i] = galaxyDockableStationShortInfo2pb(eddbStations[i])
 	}
 	return &pb.DockableStationsReply{Stations: pbStations}, nil
+}
+
+func (p *grpcProcessor) GetInterestingSystem4State(ctx context.Context, in *pb.InterestingSystem4StateRequest) (*pb.InterestingSystem4StateReply, error) {
+	eddbInfo := p.gi.eddbInfo.Load().(*eddb.EDDBInfo)
+	if eddbInfo == nil {
+		return &pb.InterestingSystem4StateReply{Error: "EDDB processor is not (yet) available"}, nil
+	}
+	nm := in.GetName()
+	place, known := p.gi.getSystemCoords(nm)
+	if !known {
+		return &pb.InterestingSystem4StateReply{Error: fmtUnknownSystem(nm)}, nil
+	}
+	states := in.GetStates()
+	if states == nil || len(states) == 0 {
+		return &pb.InterestingSystem4StateReply{Error: "Empty states"}, nil
+	}
+	minPop := in.GetMinPop()
+	if minPop < 1 {
+		return &pb.InterestingSystem4StateReply{Error: "Zero population"}, nil
+	}
+	maxDistance := in.GetMaxDistance()
+	res := eddbInfo.FindStates(states, place, minPop, maxDistance, 20)
+	
+	pbPlaces := make([]*pb.InterestingSystem4State, len(res))
+	for i, r := range res {
+		pbPlaces[i] = galaxyInterestingSystem4State2pb(r)
+	}
+	return &pb.InterestingSystem4StateReply{Systems: pbPlaces}, nil
 }
 
 func (s *GIServer) Serve() error {

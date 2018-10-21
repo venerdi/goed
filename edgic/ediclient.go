@@ -2,13 +2,13 @@ package edgic
 
 import (
 	"errors"
-	"log"
-	"time"
-
+	empty "github.com/golang/protobuf/ptypes/empty"
 	pb "goed/api/protobuf-spec"
 	"goed/edGalaxy"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"log"
+	"time"
 )
 
 type EDInfoCenterClient struct {
@@ -69,6 +69,37 @@ func (cc *EDInfoCenterClient) GetDistance(name1 string, name2 string) (float64, 
 	return rpl.GetDistance(), nil
 }
 
+func (cc *EDInfoCenterClient) GetHumanWorldStat() (*edGalaxy.HumanWorldStat, error) {
+	var stat *pb.HumanWorldStat
+	var cerr error = nil
+
+	call := func(c pb.EDInfoCenterClient, ctx context.Context) {
+		stat, cerr = c.GetHumanWorldStat(ctx, &empty.Empty{})
+	}
+
+	err := callRpc(cc.addr, call)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if cerr != nil {
+		log.Printf("Could not get system summary: %v", err)
+		return nil, errors.New("Galaxy information server malfunction")
+	}
+
+	if stat == nil {
+		return nil, errors.New("Galaxy information server is broken")
+	}
+	
+	return &edGalaxy.HumanWorldStat{
+		Systems:       stat.GetSystems(),
+		Stations:      stat.GetStations(),
+		Factions:      stat.GetFactions(),
+		HumanFactions: stat.GetHumanFactions(),
+		Population:    stat.GetPopulation()}, nil
+}
+
 func (cc *EDInfoCenterClient) GetSystemSummary(name string) (*edGalaxy.SystemSummary, error) {
 	var rpl *pb.SystemSummaryReply
 	var cerr error = nil
@@ -117,11 +148,11 @@ func (cc *EDInfoCenterClient) GetDockableStations(name string) ([]*edGalaxy.Dock
 	if len(rpl.Error) != 0 {
 		return nil, errors.New(rpl.Error), rpl.GetSuggestedSystems()
 	}
-	
+
 	pbStations := rpl.GetStations()
 	sz := len(pbStations)
 	stations := make([]*edGalaxy.DockableStationShortInfo, sz)
-	for i := 0; i<sz; i++ {
+	for i := 0; i < sz; i++ {
 		stations[i] = pb2galaxyDockableStationShortInfo(pbStations[i])
 	}
 	return stations, nil, nil

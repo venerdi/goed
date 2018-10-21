@@ -16,6 +16,7 @@ type EDDBInfo struct {
 	systems       *map[int]*SystemRecordV5
 	stations      *map[int]*StationRecordV5
 	systemsByName *map[string]*SystemRecordV5
+	factions      *map[int]*FactionRecordV5
 }
 
 type SuitablePoint struct {
@@ -45,6 +46,12 @@ func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
 		return nil, err
 	}
 	log.Printf("Got %d stations\n", len(*stations))
+	factions, err := ReadFactionsFile(dataCache.Factions.LocalFile)
+	if err != nil {
+		log.Printf("Failed to load factions: %v", err)
+		return nil, err
+	}
+	log.Printf("Got %d factions\n", len(*factions))
 	log.Println("Binding commodities...")
 	err = BindStations(dataCache.Listings.LocalFile, commodities, stations)
 	if err != nil {
@@ -70,7 +77,11 @@ func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
 		(*(system.stations))[station.Id] = station
 	}
 	log.Println("Ready")
-	return &EDDBInfo{commodities: commodities, systems: systems, stations: stations, systemsByName: &systemsByName}, nil
+	return &EDDBInfo{commodities: commodities,
+		systems:       systems,
+		stations:      stations,
+		systemsByName: &systemsByName,
+		factions:      factions}, nil
 }
 
 func (i *EDDBInfo) GetSimilarSystemNames(sname string) []string {
@@ -80,8 +91,8 @@ func (i *EDDBInfo) GetSimilarSystemNames(sname string) []string {
 	for _, s := range *i.systems {
 		if idx < sz {
 			names[idx] = s.Name
-			idx ++
-		}else{
+			idx++
+		} else {
 			log.Println("Oops. out of range))")
 		}
 	}
@@ -216,5 +227,75 @@ func (i *EDDBInfo) FindCommodity(cName string, sName string, minSupply int, minP
 		return spoints[i].distance < spoints[j].distance
 	})
 	return spoints, nil
+}
+func (s *SystemRecordV5) GetCoordinates() *edGalaxy.Point3D {
+	return &edGalaxy.Point3D{X: s.X, Y: s.Y, Z: s.Z}
+}
 
+func (i *EDDBInfo) getShortFactionState(factionId int) *edGalaxy.ShortFactionState {
+	fInfo, exists := (*i.factions)[factionId]
+	if !exists {
+		return nil
+	}
+	return &edGalaxy.ShortFactionState{Name: fInfo.Name, State: fInfo.State, Allegiance: fInfo.Allegiance}
+}
+
+func (i *EDDBInfo) FindStates(states []string, place *edGalaxy.Point3D, minPop int64, maxDistance float64, maxEntries int) []*edGalaxy.InterestingSystem4State {
+
+	wantedStates := make(map[string]bool)
+
+	for _, state := range states {
+		wantedStates[strings.ToUpper(state)] = true
+	}
+
+	suitableSystems := make([]*edGalaxy.InterestingSystem4State, 0)
+	for _, s := range *i.systems {
+		if _, wanted := wantedStates[strings.ToUpper(s.State)]; !wanted {
+			continue
+		}
+		if s.Population < minPop {
+			continue
+		}
+		coords := s.GetCoordinates()
+		if place.Distance(coords) > maxDistance {
+			continue
+		}
+		if s.FactionPresences == nil {
+			continue
+		}
+		factions := make([]*edGalaxy.ShortFactionState, 0)
+		for _, fc := range s.FactionPresences {
+			si := i.getShortFactionState(fc.FactionId)
+			if si != nil {
+				factions = append(factions, si)
+			}
+		}
+		if len(factions) > 0 {
+			suitableSystems = append(suitableSystems,
+				&edGalaxy.InterestingSystem4State{Name: s.Name, Population: s.Population, Coords: coords, Factions: factions})
+			if len(suitableSystems) >= maxEntries {
+				break
+			}			
+		}
+	}
+	return suitableSystems
+}
+
+func (i *EDDBInfo) GetHumanWorldStat() *edGalaxy.HumanWorldStat {
+	var population int64 = 0
+	for _, system := range *i.systems {
+		population += system.Population
+	}
+	var humanFactions int64 = 0
+	for _, f := range *i.factions {
+		if f.IsPlayerFaction {
+			humanFactions++
+		}
+	}
+	return &edGalaxy.HumanWorldStat{
+		Systems:       int64(len(*i.systems)),
+		Stations:      int64(len(*i.stations)),
+		Factions:      int64(len(*i.factions)),
+		HumanFactions: humanFactions,
+		Population:    population}
 }

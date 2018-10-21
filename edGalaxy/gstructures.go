@@ -23,6 +23,19 @@ type StarInfo struct {
 	IsScoopable bool
 }
 
+type ShortFactionState struct {
+	Name       string
+	State      string
+	Allegiance string
+}
+
+type InterestingSystem4State struct {
+	Name       string
+	Population int64
+	Coords     *Point3D
+	Factions   []*ShortFactionState
+}
+
 type SystemSummary struct {
 	Name        string
 	EDSMid      int64
@@ -44,6 +57,14 @@ type SystemSummaryReply struct {
 	RequestedSystemName string
 	System              *SystemSummary
 	Err                 error
+}
+
+type HumanWorldStat struct {
+	Systems       int64
+	Stations      int64
+	Factions      int64
+	HumanFactions int64
+	Population    int64
 }
 
 type SystemSummaryReplyChan chan *SystemSummaryReply

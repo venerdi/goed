@@ -3,12 +3,12 @@ package cyborg
 import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"github.com/dustin/go-humanize"
 	"goed/edGalaxy"
 	"goed/edgic"
 	"log"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"text/scanner"
 )
@@ -98,6 +98,10 @@ func (t *talker) handleIncomingMessage(im *incoming_message) {
 	}
 	if strings.HasPrefix(ctx, "stations ") {
 		t.handleStationsRequest(im.s, im.m.ChannelID, ctx[9:])
+		return
+	}
+	if strings.HasPrefix(ctx, "stat ") {
+		t.handleStatRequest(im.s, im.m.ChannelID, ctx[4:])
 		return
 	}
 	if _, op := t.operators[im.m.Author.ID]; im.isDirect && op {
@@ -213,6 +217,29 @@ func (t *talker) handleOperatorLSchannels(im *incoming_message) {
 	SendMessage(im.s, im.m.ChannelID, out)
 }
 
+func (t *talker) handleStatRequest(ds *discordgo.Session, channelID string, categories string) {
+	cat := strings.TrimSpace(categories)
+	if len(cat) != 0 && !(strings.ToLower(cat) == "humans") {
+		SendMessage(ds, channelID, "Sorry, I can only stat humans galaxy now.")
+		return
+	}
+	info, err := t.giClient.GetHumanWorldStat()
+	if err != nil {
+		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
+		return
+	}
+	txt := fmt.Sprintf("Human galaxy stat:\n```"+
+		"Systems:    %s\n"+
+		"Stations:   %s\n"+
+		"Factions:   %s (%s non-NPC's)\n"+
+		"Population: %s```\n",
+		humanize.Comma(info.Systems), humanize.Comma(info.Stations),
+		humanize.Comma(info.Factions), humanize.Comma(info.HumanFactions),
+		humanize.Comma(info.Population))
+
+	SendMessage(ds, channelID, txt)
+}
+
 func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, systemName string) {
 
 	if len(systemName) < 2 {
@@ -239,7 +266,7 @@ func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, sy
 				"Security:          %s\n"+
 				"Allegiance:        %s\n"+
 				"State:             %s\n",
-			humanString(s.BriefInfo.Population),
+			humanize.Comma(s.BriefInfo.Population),
 			s.BriefInfo.Security,
 			s.BriefInfo.Allegiance,
 			s.BriefInfo.FactionState)
@@ -294,8 +321,8 @@ func (t *talker) handleStationsRequest(ds *discordgo.Session, channelID string, 
 						txt += sg + "\n"
 					}
 					txt += "```\n"
-				}else{
-					txt += "\nDid you mean " + suggested[0] + "?\n" 
+				} else {
+					txt += "\nDid you mean " + suggested[0] + "?\n"
 				}
 			}
 		}
@@ -408,23 +435,4 @@ func SendQuotedMessage(s *discordgo.Session, m *discordgo.MessageCreate, quote s
 
 func SendMessage(s *discordgo.Session, channelId string, message string) (*discordgo.Message, error) {
 	return s.ChannelMessageSend(channelId, message)
-}
-
-func humanString(n int64) string {
-	in := strconv.FormatInt(n, 10)
-	out := make([]byte, len(in)+(len(in)-2+int(in[0]/'0'))/3)
-	if in[0] == '-' {
-		in, out[0] = in[1:], '-'
-	}
-
-	for i, j, k := len(in)-1, len(out)-1, 0; ; i, j = i-1, j-1 {
-		out[j] = in[i]
-		if i == 0 {
-			return string(out)
-		}
-		if k++; k == 3 {
-			j, k = j-1, 0
-			out[j] = ','
-		}
-	}
 }

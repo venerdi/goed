@@ -14,6 +14,7 @@
 
 syntax = "proto3";
 
+import "google/protobuf/empty.proto";
 
 package api;
 
@@ -48,6 +49,27 @@ message DockableStationShortInfo {
   bool planetary = 4;
 }
 
+message HumanWorldStat {
+	int64 systems = 1;
+	int64 stations =2;
+	int64 factions  = 3;
+	int64 human_factions  = 4;
+	int64 population = 5;
+}
+
+message ShortFactionState {
+  string name       = 1;
+  string state      = 2;
+  string allegiance = 3;
+}
+
+message InterestingSystem4State {
+  string name       = 1;
+  Point3D coords    = 2;
+  int64 population  = 3;
+  repeated ShortFactionState faction_states = 4;
+}
+
 message SystemByNameRequest {
   string name = 1;
 }
@@ -73,8 +95,22 @@ message DockableStationsReply {
   repeated string suggested_systems = 3;
 }
 
+message InterestingSystem4StateRequest {
+  string name = 1;
+  repeated string states = 2;
+  int64 min_pop  = 3;
+  double max_distance = 4;
+}
+
+message InterestingSystem4StateReply {
+  string error = 1; // the error if non - empty
+  repeated InterestingSystem4State systems = 2;
+}
+
 service EDInfoCenter {
   rpc GetDistance (SystemsDistanceRequest) returns (SystemsDistanceReply) {}
   rpc GetSystemSummary(SystemByNameRequest) returns (SystemSummaryReply) {}
   rpc GetDockableStations(SystemByNameRequest) returns (DockableStationsReply) {}
+  rpc GetInterestingSystem4State(InterestingSystem4StateRequest) returns(InterestingSystem4StateReply) {}
+  rpc GetHumanWorldStat(google.protobuf.Empty) returns (HumanWorldStat){}
 }

@@ -128,7 +128,7 @@ type StationRecordV5 struct {
 	ControllingMinorFaction int      `json:"controlling_minor_faction_id"`
 }
 
-type FactionFileRecordV5 struct {
+type FactionRecordV5 struct {
 	ID              int    `json:"id"`
 	Name            string `json:"name"`
 	UpdatedAt       int64  `json:"updated_at"`
@@ -164,6 +164,28 @@ func ReadCommoditiesFile(fn string) (*map[int]*CommodityRecordV5, error) {
 	for i := 0; i < len(cmdts); i++ {
 		m[cmdts[i].Id] = &(cmdts[i])
 	}
+	return &m, nil
+}
+
+func ReadFactionsFile(fn string) (*map[int]*FactionRecordV5, error) {
+	f, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	m := make(map[int]*FactionRecordV5)
+	for scanner.Scan() {
+		var s FactionRecordV5
+		if err := json.Unmarshal(scanner.Bytes(), &s); err != nil {
+			log.Printf("Error unmarshaling faction: %v\n", err)
+			continue
+		}
+		m[s.ID] = &s
+	}
+
 	return &m, nil
 }
 
@@ -335,3 +357,4 @@ func BindStations(listing string, commodities *map[int]*CommodityRecordV5, stati
 	}
 	return nil
 }
+
