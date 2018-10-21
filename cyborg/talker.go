@@ -282,10 +282,24 @@ func (t *talker) handleStationsRequest(ds *discordgo.Session, channelID string, 
 		return
 	}
 
-	s, err := t.giClient.GetDockableStations(systemName)
+	s, err, suggested := t.giClient.GetDockableStations(systemName)
 
 	if err != nil {
-		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
+		txt := fmt.Sprintf("%v", err)
+		if suggested != nil {
+			if len(suggested) > 0 {
+				if len(suggested) > 1 {
+					txt += "\nDid you mean one of the following?```\n"
+					for _, sg := range suggested {
+						txt += sg + "\n"
+					}
+					txt += "```\n"
+				}else{
+					txt += "\nDid you mean " + suggested[0] + "?\n" 
+				}
+			}
+		}
+		SendMessage(ds, channelID, txt)
 		return
 	}
 

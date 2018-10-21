@@ -95,7 +95,7 @@ func (cc *EDInfoCenterClient) GetSystemSummary(name string) (*edGalaxy.SystemSum
 	return pbSystemSummary2galaxy(rpl.GetSummary()), nil
 }
 
-func (cc *EDInfoCenterClient) GetDockableStations(name string) ([]*edGalaxy.DockableStationShortInfo, error) {
+func (cc *EDInfoCenterClient) GetDockableStations(name string) ([]*edGalaxy.DockableStationShortInfo, error, []string) {
 	var rpl *pb.DockableStationsReply
 	var cerr error = nil
 
@@ -106,16 +106,16 @@ func (cc *EDInfoCenterClient) GetDockableStations(name string) ([]*edGalaxy.Dock
 	err := callRpc(cc.addr, call)
 
 	if err != nil {
-		return nil, err
+		return nil, err, nil
 	}
 
 	if cerr != nil {
 		log.Printf("Could not get system dockables: %v", err)
-		return nil, errors.New("Galaxy information server malfunction")
+		return nil, errors.New("Galaxy information server malfunction"), nil
 	}
 
 	if len(rpl.Error) != 0 {
-		return nil, errors.New(rpl.Error)
+		return nil, errors.New(rpl.Error), rpl.GetSuggestedSystems()
 	}
 	
 	pbStations := rpl.GetStations()
@@ -124,7 +124,7 @@ func (cc *EDInfoCenterClient) GetDockableStations(name string) ([]*edGalaxy.Dock
 	for i := 0; i<sz; i++ {
 		stations[i] = pb2galaxyDockableStationShortInfo(pbStations[i])
 	}
-	return stations, nil
+	return stations, nil, nil
 }
 
 func pbPoint3D2galaxy(p *pb.Point3D) *edGalaxy.Point3D {

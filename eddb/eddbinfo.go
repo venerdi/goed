@@ -2,6 +2,7 @@ package eddb
 
 import (
 	"errors"
+	"github.com/lithammer/fuzzysearch/fuzzy"
 	"goed/edGalaxy"
 	"log"
 	"math"
@@ -70,6 +71,21 @@ func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
 	}
 	log.Println("Ready")
 	return &EDDBInfo{commodities: commodities, systems: systems, stations: stations, systemsByName: &systemsByName}, nil
+}
+
+func (i *EDDBInfo) GetSimilarSystemNames(sname string) []string {
+	sz := len(*(i.systems))
+	names := make([]string, sz)
+	idx := 0
+	for _, s := range *i.systems {
+		if idx < sz {
+			names[idx] = s.Name
+			idx ++
+		}else{
+			log.Println("Oops. out of range))")
+		}
+	}
+	return fuzzy.FindFold(sname, names)
 }
 
 func (i *EDDBInfo) getCommodity(cName string) (*CommodityRecordV5, bool) {

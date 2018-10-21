@@ -144,7 +144,13 @@ func (p *grpcProcessor) GetDockableStations(ctx context.Context, in *pb.SystemBy
 	}
 	eddbStations, known := eddbInfo.GetDockableStations(in.GetName())
 	if !known {
-		return &pb.DockableStationsReply{Error: fmtNonHabitableSystem(in.GetName())}, nil
+		suggested := eddbInfo.GetSimilarSystemNames(in.GetName())
+		if len(suggested) > 0 {
+			if len(suggested) > 10 {
+				suggested = suggested[:10]
+			}
+		}
+		return &pb.DockableStationsReply{Error: fmtNonHabitableSystem(in.GetName()), SuggestedSystems: suggested}, nil
 	}
 	sz := len(eddbStations)
 	pbStations := make([]*pb.DockableStationShortInfo, sz)
