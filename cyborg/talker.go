@@ -381,8 +381,8 @@ func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, 
 		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
 		return
 	}
-	txt := fmt.Sprintf("Distance %s/%s: %.02f LY\n",
-		pair[0], pair[1], d)
+	txt := fmt.Sprintf("Distance %s/%s: %s LY\n",
+		pair[0], pair[1], humanize.CommafWithDigits(d, 2))
 	SendMessage(ds, channelID, txt)
 }
 
