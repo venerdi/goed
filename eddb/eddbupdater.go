@@ -26,6 +26,7 @@ type DataCacheConfig struct {
 	Stations    CachedData
 	Commodities CachedData
 	Listings    CachedData
+	ProcessListings bool
 }
 
 type DataCache struct {

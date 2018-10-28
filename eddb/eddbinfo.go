@@ -52,11 +52,15 @@ func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
 		return nil, err
 	}
 	log.Printf("Got %d factions\n", len(*factions))
-	log.Println("Binding commodities...")
-	err = BindStations(dataCache.Listings.LocalFile, commodities, stations)
-	if err != nil {
-		log.Printf("Unexpected error binding stations: %v\n", err)
-		return nil, err
+	if dataCache.ProcessListings { 
+		log.Println("Binding commodities...")
+		err = BindStations(dataCache.Listings.LocalFile, commodities, stations)
+		if err != nil {
+			log.Printf("Unexpected error binding stations: %v\n", err)
+			return nil, err
+		}
+	}else{
+		log.Println("Commodities processing is not eneabled in the configuration file.")
 	}
 	log.Println("Mapping")
 	systemsByName := make(map[string]*SystemRecordV5)
