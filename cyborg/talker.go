@@ -21,15 +21,17 @@ type incoming_message struct {
 
 type talker struct {
 	version          string
+	botName          string
 	operators        map[string]int
 	incomingMessages chan *incoming_message
 	giClient         *edgic.EDInfoCenterClient
 	ignoredSystems   map[string]bool
 }
 
-func newTalker(ops []string, ver string, giClient *edgic.EDInfoCenterClient, ignoredSystems []string) *talker {
+func newTalker(ops []string, botName string, ver string, giClient *edgic.EDInfoCenterClient, ignoredSystems []string) *talker {
 	t := &talker{
 		version:          ver,
+		botName:          botName,
 		operators:        make(map[string]int),
 		incomingMessages: make(chan *incoming_message),
 		giClient:         giClient,
@@ -72,19 +74,8 @@ func (t *talker) handleIncomingMessage(im *incoming_message) {
 	ctx := strings.TrimSpace(re.ReplaceAllString(im.m.Content, ""))
 	log.Printf("Stripped: '%s'\n", ctx)
 
-	if ctx == "ping" {
-		SendMessage(im.s, im.m.ChannelID, "Pong!")
-		return
-	}
-
-	// If the message is "pong" reply with "Ping!"
-	if ctx == "pong" {
-		SendMessage(im.s, im.m.ChannelID, "Ping!")
-		return
-	}
-
-	if ctx == "version" {
-		SendQuotedMessage(im.s, im.m, ctx, t.version)
+	if ctx == "help" {
+		t.handleHelpRequest(im.s, im.m.ChannelID)
 		return
 	}
 
@@ -220,7 +211,7 @@ func (t *talker) handleOperatorLSchannels(im *incoming_message) {
 func (t *talker) handleStatRequest(ds *discordgo.Session, channelID string, categories string) {
 	cat := strings.TrimSpace(categories)
 	if len(cat) != 0 && !(strings.ToLower(cat) == "humans") {
-		SendMessage(ds, channelID, "Sorry, I can only stat humans galaxy now.")
+		SendMessage(ds, channelID, "Sorry, I can only stat human's galaxy now.")
 		return
 	}
 	info, err := t.giClient.GetHumanWorldStat()
@@ -237,6 +228,20 @@ func (t *talker) handleStatRequest(ds *discordgo.Session, channelID string, cate
 		humanize.Comma(info.Factions), humanize.Comma(info.HumanFactions),
 		humanize.Comma(info.Population))
 
+	SendMessage(ds, channelID, txt)
+}
+
+func (t *talker) handleHelpRequest(ds *discordgo.Session, channelID string) {
+	txt := fmt.Sprintf("Ciao, I'm %s, talk module version %s.\nKnown to me commands are:```", t.botName, t.version) +
+		"system <system name>\n" +
+		"\tGives a brief system description\n" +
+		"stations <system name>\n" +
+		"\tLists the stations in the system\n" +
+		"distance <system name 1>/<system name 2>\n" +
+		"\tCalculates distance between the systems\n" +
+		"stat humans\n" +
+		"\tGives some numbers about the galaxy\n" +
+		"```"
 	SendMessage(ds, channelID, txt)
 }
 

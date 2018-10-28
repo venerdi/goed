@@ -18,6 +18,7 @@ type AssignRoleOnGame struct {
 
 type CyborgBotDiscordConfig struct {
 	Token          string
+	BotName        string
 	Operators      []string
 	AutoRoles      []AssignRoleOnGame
 	IgnoredSystems []string
@@ -31,27 +32,36 @@ func (c *CyborgBotDiscordConfig) CheckConfig() error {
 }
 
 type CybordBot struct {
-	Token            string
-	Version          string
-	enableRA         bool
-	operators        map[string]int
-	roleAssigner     *role_assigner
-	t                *talker
-	DgSession        *discordgo.Session
-	giClient         *edgic.EDInfoCenterClient
+	Token        string
+	BotName      string
+	Version      string
+	enableRA     bool
+	operators    map[string]int
+	roleAssigner *role_assigner
+	t            *talker
+	DgSession    *discordgo.Session
+	giClient     *edgic.EDInfoCenterClient
 }
 
 func NewCybordBot(cfg *CyborgBotDiscordConfig, galaxyInfoAddress string) *CybordBot {
-	ver := "0.0.3"
-	
+	ver := "0.0.4"
+
 	giClient := edgic.NewEDInfoCenterClient(galaxyInfoAddress)
 
+	botName := "Cyborg"
+	if len(cfg.BotName) > 0 {
+		botName = cfg.BotName
+	} else {
+		log.Println("Bot name is not set, assuming " + botName)
+	}
+
 	b := &CybordBot{
-		Token:            cfg.Token,
-		Version:          ver,
-		roleAssigner:     newRoleAssigner(cfg.AutoRoles),
-		t:                newTalker(cfg.Operators, ver, giClient, cfg.IgnoredSystems),
-		giClient: giClient,
+		Token:        cfg.Token,
+		BotName:      botName,
+		Version:      ver,
+		roleAssigner: newRoleAssigner(cfg.AutoRoles),
+		t:            newTalker(cfg.Operators, botName, ver, giClient, cfg.IgnoredSystems),
+		giClient:     giClient,
 	}
 	b.operators = make(map[string]int)
 	for _, op := range cfg.Operators {
