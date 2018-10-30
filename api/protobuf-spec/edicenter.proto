@@ -95,6 +95,25 @@ message DockableStationsReply {
   repeated string suggested_systems = 3;
 }
 
+message MostVisitedSystemsRequest {
+  string origin = 1;
+  double max_distance = 2;
+  int64 max_age = 3;
+  int64 limit = 4;
+}
+
+message SystemVisitsStat {
+	string name = 1;
+	int64 count = 2;
+	double distance = 3; // distance from origin
+}
+
+message MostVisitedSystemsReply {
+	string error = 1; // the error if non - empty
+    repeated SystemVisitsStat system_visit_stat = 2;
+    int64 total_count = 3;
+}
+
 message InterestingSystem4StateRequest {
   string name = 1;
   repeated string states = 2;
@@ -111,6 +130,7 @@ service EDInfoCenter {
   rpc GetDistance (SystemsDistanceRequest) returns (SystemsDistanceReply) {}
   rpc GetSystemSummary(SystemByNameRequest) returns (SystemSummaryReply) {}
   rpc GetDockableStations(SystemByNameRequest) returns (DockableStationsReply) {}
+  rpc GetMostVisitedSystems(MostVisitedSystemsRequest) returns (MostVisitedSystemsReply) {}
   rpc GetInterestingSystem4State(InterestingSystem4StateRequest) returns(InterestingSystem4StateReply) {}
   rpc GetHumanWorldStat(google.protobuf.Empty) returns (HumanWorldStat){}
 }

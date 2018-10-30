@@ -53,6 +53,22 @@ type DockableStationShortInfo struct {
 	Planetary  bool
 }
 
+type SystemVisitsStat struct {
+	Name  string
+	Coords *Point3D
+	Count int64
+}
+
+type SystemVisitsStatCalculated struct {
+	Name  string
+	Count int64
+	Distance float64
+}
+
+type VisitsStatProvider interface {
+	GetSystemVisitsStat(coords *Point3D, maxDistance float64, limit int)([]*SystemVisitsStat, int64, error)
+}
+
 type SystemSummaryReply struct {
 	RequestedSystemName string
 	System              *SystemSummary

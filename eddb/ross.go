@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,9 +22,10 @@ const (
 	SCHEMA_KEY = "$schemaRef"
 	RELAY      = "tcp://eddn.edcd.io:9500"
 
-	cmd_exit    = 0
-	cmd_backup  = 1
-	cmd_restore = 2
+	cmd_exit          = 0
+	cmd_backup        = 1
+	cmd_restore       = 2
+	cmd_getSystemStat = 10
 )
 
 type EDDNMessage struct {
@@ -98,6 +100,16 @@ type shipStatCollector_controlMessage struct {
 	result  chan interface{}
 }
 
+type shipStatCollector_getSystemVisitStatRequest struct {
+	coords      *edGalaxy.Point3D
+	maxDistance float64
+}
+
+type shipStatCollector_getSystemVisitStatReply struct {
+	stat         []*edGalaxy.SystemVisitsStat
+	inRangeCount int64
+}
+
 type SystemShipStat struct {
 	Name          string                                      `json:"Name"`
 	Coords        edGalaxy.Point3D                            `json:"Coords"`
@@ -122,7 +134,7 @@ func NewShipStatCollector() *ShipStatCollector {
 	c := &ShipStatCollector{
 		fsdJump:          make(chan *EDDNMessage, 10),
 		docked:           make(chan *EDDNMessage, 10),
-		control:          make(chan shipStatCollector_controlMessage),
+		control:          make(chan shipStatCollector_controlMessage, 10),
 		listenLoopStatus: 0,
 		systemsStat:      make(map[string]*SystemShipStat)}
 	go c.processMessages()
@@ -188,6 +200,11 @@ func (c *ShipStatCollector) handleControlMessage(m *shipStatCollector_controlMes
 			m.result <- errcode
 			return false
 		}
+	case cmd_getSystemStat:
+		{
+			m.result <- c.getSystemVisitStat(m.params.(shipStatCollector_getSystemVisitStatRequest))
+			return false
+		}
 	default:
 		{
 			log.Printf("Unhandled command %d\n", m.command)
@@ -195,6 +212,21 @@ func (c *ShipStatCollector) handleControlMessage(m *shipStatCollector_controlMes
 		}
 	}
 	return false
+}
+func (c *ShipStatCollector) getSystemVisitStat(rq shipStatCollector_getSystemVisitStatRequest) shipStatCollector_getSystemVisitStatReply {
+	var totalCount int64 = 0
+	stat := make([]*edGalaxy.SystemVisitsStat,0)
+	for _, st := range c.systemsStat {
+		if rq.coords.Distance( & st.Coords ) <= rq.maxDistance  {
+			var systemCount int64 = 0
+			for _, timeVisits := range st.SystemVisits.Visits {
+				systemCount += timeVisits.VisitCount
+			}
+			totalCount += systemCount
+			stat = append(stat,&edGalaxy.SystemVisitsStat{Name: st.Name, Coords: & st.Coords, Count: systemCount} )
+		}
+	}
+	return shipStatCollector_getSystemVisitStatReply{stat: stat, inRangeCount: totalCount}
 }
 
 func (c *ShipStatCollector) performBackup(fileName string) int {
@@ -331,6 +363,26 @@ func (c *ShipStatCollector) Restore(fileName string) bool {
 	res := <-m.result
 	return res == 0
 }
+
+func (c *ShipStatCollector) GetSystemVisitsStat(coords *edGalaxy.Point3D, maxDistance float64, limit int) ([]*edGalaxy.SystemVisitsStat, int64, error) {
+	m := shipStatCollector_controlMessage{
+		command: cmd_getSystemStat,
+		params:  shipStatCollector_getSystemVisitStatRequest{coords: coords, maxDistance: maxDistance},
+		result:  make(chan interface{})}
+	c.control <- m
+	r := <-m.result
+
+	rpl := r.(shipStatCollector_getSystemVisitStatReply)
+	
+	sort.Slice(rpl.stat, func(i, j int) bool {
+		return rpl.stat[i].Count > rpl.stat[j].Count // reverse
+	})
+	if len(rpl.stat) > limit {
+		rpl.stat = rpl.stat[:limit]
+	}
+	return rpl.stat, rpl.inRangeCount, nil
+}
+
 
 func (c *ShipStatCollector) listenLoop() {
 	needDeal := true

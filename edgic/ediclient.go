@@ -91,13 +91,35 @@ func (cc *EDInfoCenterClient) GetHumanWorldStat() (*edGalaxy.HumanWorldStat, err
 	if stat == nil {
 		return nil, errors.New("Galaxy information server is broken")
 	}
-	
+
 	return &edGalaxy.HumanWorldStat{
 		Systems:       stat.GetSystems(),
 		Stations:      stat.GetStations(),
 		Factions:      stat.GetFactions(),
 		HumanFactions: stat.GetHumanFactions(),
 		Population:    stat.GetPopulation()}, nil
+}
+
+func (cc *EDInfoCenterClient) GetMostVisitedSystems(systemName string, maxDistance float64, limit int) ([]*edGalaxy.SystemVisitsStatCalculated, int64, error) {
+	var rpl *pb.MostVisitedSystemsReply
+	var cerr error = nil
+
+	statcall := func(c pb.EDInfoCenterClient, ctx context.Context) {
+		rpl, cerr = c.GetMostVisitedSystems(ctx, &pb.MostVisitedSystemsRequest{
+			Origin:      systemName,
+			MaxDistance: maxDistance, Limit: int64(limit)})
+	}
+	err := callRpc(cc.addr, statcall)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if cerr != nil {
+		log.Printf("Could not get most visited systems: %v", err)
+		return nil, 0, errors.New("Galaxy information server malfunction")
+	}
+	return pbSystemVisitsStat2galaxySystemVisitsStatCalculated(rpl.GetSystemVisitStat()), rpl.GetTotalCount(), nil
 }
 
 func (cc *EDInfoCenterClient) GetSystemSummary(name string) (*edGalaxy.SystemSummary, error) {
@@ -165,6 +187,20 @@ func pbPoint3D2galaxy(p *pb.Point3D) *edGalaxy.Point3D {
 	return &edGalaxy.Point3D{X: p.X, Y: p.Y, Z: p.Z}
 }
 
+func pbSystemVisitsStat2galaxySystemVisitsStatCalculated(pbStat []*pb.SystemVisitsStat) []*edGalaxy.SystemVisitsStatCalculated {
+	if pbStat == nil {
+		return nil
+	}
+	stat := make([]*edGalaxy.SystemVisitsStatCalculated, len(pbStat))
+	for i, s := range pbStat {
+		stat[i] = &edGalaxy.SystemVisitsStatCalculated{
+			Name:     s.GetName(),
+			Count:    s.GetCount(),
+			Distance: s.GetDistance()}
+	}
+	return stat
+}
+
 func pmPopSystemBriefInfo2galaxy(i *pb.PopulatedSystemBriefInfo) *edGalaxy.BriefSystemInfo {
 	if i == nil {
 		return nil
@@ -179,6 +215,7 @@ func pmPopSystemBriefInfo2galaxy(i *pb.PopulatedSystemBriefInfo) *edGalaxy.Brief
 		Security:     i.GetSecurity(),
 		Economy:      i.GetEconomy()}
 }
+
 func pb2galaxyDockableStationShortInfo(s *pb.DockableStationShortInfo) *edGalaxy.DockableStationShortInfo {
 	if s == nil {
 		return nil

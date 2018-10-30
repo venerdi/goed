@@ -95,6 +95,10 @@ func (t *talker) handleIncomingMessage(im *incoming_message) {
 		t.handleStatRequest(im.s, im.m.ChannelID, ctx[4:])
 		return
 	}
+	if strings.HasPrefix(ctx, "popular ") {
+		t.handlePopularSystemsRequest(im.s, im.m.ChannelID, ctx[8:])
+		return
+	}
 	if _, op := t.operators[im.m.Author.ID]; im.isDirect && op {
 		t.handleDirectOperatorMessage(im)
 	}
@@ -300,6 +304,27 @@ func getStationsTable(stations []*edGalaxy.DockableStationShortInfo) ([][]string
 		row[2] = st.Name
 	}
 	return rows, mxDistSize, mxDescrSize
+}
+func (t *talker) handlePopularSystemsRequest(ds *discordgo.Session, channelID string, systemName string) {
+	if len(systemName) < 2 {
+		SendMessage(ds, channelID, "System name must be at least 2 chars")
+		return
+	}
+
+	if _, ignored := t.ignoredSystems[strings.ToLower(systemName)]; ignored {
+		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", systemName))
+		return
+	}
+	stat, total, err := t.giClient.GetMostVisitedSystems(systemName, 200, 20)
+	if err != nil {
+		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
+		return
+	}
+	txt := fmt.Sprintf("Total visints in the area %d\n", total)
+	for _, s := range stat {
+		txt += fmt.Sprintf("%s: Count %d Distance %.02f\n", s.Name, s.Count, s.Distance)
+	}
+	SendMessage(ds, channelID, txt)
 }
 
 func (t *talker) handleStationsRequest(ds *discordgo.Session, channelID string, systemName string) {

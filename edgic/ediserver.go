@@ -6,10 +6,10 @@ import (
 	"log"
 	"net"
 
+	empty "github.com/golang/protobuf/ptypes/empty"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	empty "github.com/golang/protobuf/ptypes/empty"
 
 	pb "goed/api/protobuf-spec"
 	"goed/edGalaxy"
@@ -24,10 +24,11 @@ type GrpcServerConf struct {
 }
 
 type GIServer struct {
-	eddbInfo atomic.Value
-	edsmc    *edsm.EDSMConnector
-	cfg      GrpcServerConf
-	s        *grpc.Server
+	eddbInfo           atomic.Value
+	edsmc              *edsm.EDSMConnector
+	visitsStatProvider edGalaxy.VisitsStatProvider
+	cfg                GrpcServerConf
+	s                  *grpc.Server
 }
 
 type grpcProcessor struct {
@@ -40,6 +41,10 @@ func NewGIServer(cfg GrpcServerConf) *GIServer {
 
 func (s *GIServer) SetEDDBData(data *eddb.EDDBInfo) {
 	s.eddbInfo.Store(data)
+}
+
+func (s *GIServer) SetVisitsStatProvider(prov edGalaxy.VisitsStatProvider) {
+	s.visitsStatProvider = prov
 }
 
 func (s *GIServer) getSystemCoords(systemName string) (*edGalaxy.Point3D, bool) {
@@ -103,9 +108,21 @@ func galaxyShortFactionState2pb(s *edGalaxy.ShortFactionState) *pb.ShortFactionS
 	if s == nil {
 		return nil
 	}
-	return &pb.ShortFactionState{ Name: s.Name, State: s.State, Allegiance: s.Allegiance }
+	return &pb.ShortFactionState{Name: s.Name, State: s.State, Allegiance: s.Allegiance}
 }
-
+func galaxySystemVisitsStat2pb(coords *edGalaxy.Point3D, stat []*edGalaxy.SystemVisitsStat) []*pb.SystemVisitsStat {
+	if stat == nil {
+		return nil
+	}
+	rv := make([]*pb.SystemVisitsStat, len(stat))
+	for i, s := range stat {
+		rv[i] = &pb.SystemVisitsStat{
+			Name:     s.Name,
+			Count:    s.Count,
+			Distance: coords.Distance(s.Coords)}
+	}
+	return rv
+}
 func galaxyInterestingSystem4State2pb(s *edGalaxy.InterestingSystem4State) *pb.InterestingSystem4State {
 	if s == nil {
 		return nil
@@ -115,9 +132,9 @@ func galaxyInterestingSystem4State2pb(s *edGalaxy.InterestingSystem4State) *pb.I
 		pbFactions[i] = galaxyShortFactionState2pb(f)
 	}
 	return &pb.InterestingSystem4State{
-		Name: s.Name,
-		Population: s.Population,
-		Coords: galaxyPoint2pb( s.Coords ),
+		Name:          s.Name,
+		Population:    s.Population,
+		Coords:        galaxyPoint2pb(s.Coords),
 		FactionStates: pbFactions}
 }
 
@@ -166,7 +183,7 @@ func (p *grpcProcessor) GetHumanWorldStat(ctx context.Context, _ *empty.Empty) (
 	if eddbInfo == nil {
 		return nil, errors.New("EDDB processor is not (yet) available")
 	}
-	
+
 	ws := eddbInfo.GetHumanWorldStat()
 	if ws == nil {
 		log.Println("Unexpected nil stat\n")
@@ -197,7 +214,7 @@ func (p *grpcProcessor) GetDockableStations(ctx context.Context, in *pb.SystemBy
 	}
 	sz := len(eddbStations)
 	pbStations := make([]*pb.DockableStationShortInfo, sz)
-	for i := 0; i<sz; i++ {
+	for i := 0; i < sz; i++ {
 		pbStations[i] = galaxyDockableStationShortInfo2pb(eddbStations[i])
 	}
 	return &pb.DockableStationsReply{Stations: pbStations}, nil
@@ -223,12 +240,31 @@ func (p *grpcProcessor) GetInterestingSystem4State(ctx context.Context, in *pb.I
 	}
 	maxDistance := in.GetMaxDistance()
 	res := eddbInfo.FindStates(states, place, minPop, maxDistance, 20)
-	
+
 	pbPlaces := make([]*pb.InterestingSystem4State, len(res))
 	for i, r := range res {
 		pbPlaces[i] = galaxyInterestingSystem4State2pb(r)
 	}
 	return &pb.InterestingSystem4StateReply{Systems: pbPlaces}, nil
+}
+func (p *grpcProcessor) GetMostVisitedSystems(ctx context.Context, in *pb.MostVisitedSystemsRequest) (*pb.MostVisitedSystemsReply, error) {
+	nm := in.GetOrigin()
+	coords, known := p.gi.getSystemCoords(nm)
+	if !known {
+		return &pb.MostVisitedSystemsReply{Error: fmtUnknownSystem(nm)}, nil
+	}
+	if p.gi.visitsStatProvider == nil {
+		return &pb.MostVisitedSystemsReply{Error: "Stat collector is not set"}, nil
+	}
+
+	stat, total, err := p.gi.visitsStatProvider.GetSystemVisitsStat(coords, in.GetMaxDistance(), int(in.GetLimit()))
+	if err != nil {
+		log.Printf("GetSystemVisitsStat failed: %v", err)
+		return &pb.MostVisitedSystemsReply{Error: "Stat collector eroor detected"}, nil
+	}
+
+	return &pb.MostVisitedSystemsReply{SystemVisitStat: galaxySystemVisitsStat2pb(coords, stat),
+		TotalCount: total}, nil
 }
 
 func (s *GIServer) Serve() error {

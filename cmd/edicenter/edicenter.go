@@ -90,7 +90,7 @@ func main() {
 	silent := flag.Bool("noout", false, "Exclude stdout from logging")
 	logFileName := flag.String("logfile", "edicenter.log", "Log file name. Logging to file will be disabled if empty")
 
-	floodUpdates := flag.Bool("floodUpdates", false, "Flood the memory)). Don't use it))")
+//	floodUpdates := flag.Bool("floodUpdates", false, "Flood the memory)). Don't use it))")
 
 	flag.Parse()
 
@@ -140,28 +140,30 @@ func main() {
 	gocron.Every(cfg.CheckPeriod).Seconds().Do(checker)
 	gocron.Start()
 
-	go ediSrv.Serve()
 
 	eddnListener := eddb.NewShipStatCollector()
-	eddnListener.StartListen()
-
-	if *floodUpdates {
-		memuser := func() {
-			eddbInfo, err := eddb.BuildEDDBInfo(&cfg.EDDBCache)
-			if err == nil {
-				ediSrv.SetEDDBData(eddbInfo)
-				log.Println("New galaxy info is set")
-				printMemUsage()
-			} else {
-				log.Print("Failed to load initial galaxy info\n")
-			}
-		}
-		gocron.Every(10).Seconds().Do(memuser)
-	}
 	if len(cfg.StarStat.BackupFile) > 0 {
 		eddnListener.Restore(cfg.StarStat.BackupFile)
-		gocron.Every(60).Seconds().Do(eddnListener.Backup, cfg.StarStat.BackupFile)
+		gocron.Every(cfg.StarStat.BackupPeriod).Seconds().Do(eddnListener.Backup, cfg.StarStat.BackupFile)
 	}
+	ediSrv.SetVisitsStatProvider(eddnListener)
+	go ediSrv.Serve()
+
+	eddnListener.StartListen()
+
+//	if *floodUpdates {
+//		memuser := func() {
+//			eddbInfo, err := eddb.BuildEDDBInfo(&cfg.EDDBCache)
+//			if err == nil {
+//				ediSrv.SetEDDBData(eddbInfo)
+//				log.Println("New galaxy info is set")
+//				printMemUsage()
+//			} else {
+//				log.Print("Failed to load initial galaxy info\n")
+//			}
+//		}
+//		gocron.Every(10).Seconds().Do(memuser)
+//	}
 
 	// Wait here until CTRL-C or other term signal is received.
 	log.Println("Running. Send me a signal to exit.")

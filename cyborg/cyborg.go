@@ -44,7 +44,7 @@ type CybordBot struct {
 }
 
 func NewCybordBot(cfg *CyborgBotDiscordConfig, galaxyInfoAddress string) *CybordBot {
-	ver := "0.0.4"
+	ver := "0.0.5"
 
 	giClient := edgic.NewEDInfoCenterClient(galaxyInfoAddress)
 
