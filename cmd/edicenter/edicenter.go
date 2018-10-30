@@ -19,10 +19,15 @@ import (
 	"syscall"
 )
 
+type StarStatCfg struct {
+	BackupFile   string
+	BackupPeriod uint64
+}
 type EDInfoCenterConf struct {
 	EDDBCache   eddb.DataCacheConfig
 	CheckPeriod uint64
 	GrpcSrv     edgic.GrpcServerConf
+	StarStat    StarStatCfg
 }
 
 func loadConfig(path string) (*EDInfoCenterConf, error) {
@@ -137,6 +142,9 @@ func main() {
 
 	go ediSrv.Serve()
 
+	eddnListener := eddb.NewShipStatCollector()
+	eddnListener.StartListen()
+
 	if *floodUpdates {
 		memuser := func() {
 			eddbInfo, err := eddb.BuildEDDBInfo(&cfg.EDDBCache)
@@ -150,10 +158,20 @@ func main() {
 		}
 		gocron.Every(10).Seconds().Do(memuser)
 	}
+	if len(cfg.StarStat.BackupFile) > 0 {
+		eddnListener.Restore(cfg.StarStat.BackupFile)
+		gocron.Every(60).Seconds().Do(eddnListener.Backup, cfg.StarStat.BackupFile)
+	}
+
 	// Wait here until CTRL-C or other term signal is received.
 	log.Println("Running. Send me a signal to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
 
+	if len(cfg.StarStat.BackupFile) > 0 {
+		eddnListener.Backup(cfg.StarStat.BackupFile)
+	}
+
+	eddnListener.Shutdown()
 }
