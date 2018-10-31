@@ -215,15 +215,15 @@ func (c *ShipStatCollector) handleControlMessage(m *shipStatCollector_controlMes
 }
 func (c *ShipStatCollector) getSystemVisitStat(rq shipStatCollector_getSystemVisitStatRequest) shipStatCollector_getSystemVisitStatReply {
 	var totalCount int64 = 0
-	stat := make([]*edGalaxy.SystemVisitsStat,0)
+	stat := make([]*edGalaxy.SystemVisitsStat, 0)
 	for _, st := range c.systemsStat {
-		if rq.coords.Distance( & st.Coords ) <= rq.maxDistance  {
+		if rq.coords.Distance(&st.Coords) <= rq.maxDistance {
 			var systemCount int64 = 0
 			for _, timeVisits := range st.SystemVisits.Visits {
 				systemCount += timeVisits.VisitCount
 			}
 			totalCount += systemCount
-			stat = append(stat,&edGalaxy.SystemVisitsStat{Name: st.Name, Coords: & st.Coords, Count: systemCount} )
+			stat = append(stat, &edGalaxy.SystemVisitsStat{Name: st.Name, Coords: &st.Coords, Count: systemCount})
 		}
 	}
 	return shipStatCollector_getSystemVisitStatReply{stat: stat, inRangeCount: totalCount}
@@ -373,16 +373,22 @@ func (c *ShipStatCollector) GetSystemVisitsStat(coords *edGalaxy.Point3D, maxDis
 	r := <-m.result
 
 	rpl := r.(shipStatCollector_getSystemVisitStatReply)
-	
+
 	sort.Slice(rpl.stat, func(i, j int) bool {
-		return rpl.stat[i].Count > rpl.stat[j].Count // reverse
+		c1 := rpl.stat[i].Count
+		c2 := rpl.stat[j].Count
+		if c1 != c2 {
+			return c1 > c2 // reverse
+		}
+		d1 := coords.Distance(rpl.stat[i].Coords)
+		d2 := coords.Distance(rpl.stat[j].Coords)
+		return d1 < d2
 	})
 	if len(rpl.stat) > limit {
 		rpl.stat = rpl.stat[:limit]
 	}
 	return rpl.stat, rpl.inRangeCount, nil
 }
-
 
 func (c *ShipStatCollector) listenLoop() {
 	needDeal := true
