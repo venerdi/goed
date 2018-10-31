@@ -9,17 +9,17 @@ import (
 	"log"
 	"regexp"
 	"sort"
-	"strings"
 	"strconv"
+	"strings"
 	"text/scanner"
 )
 
 var (
-	rePopularInTheBuble = regexp.MustCompile(`\s*in\s+the\s*bubb?le\s*`)
-	rePopularInTheGalaxy = regexp.MustCompile(`\s*in\s+the\s*galaxy\s*`) 
-	rePopularAtColonia = regexp.MustCompile(`\s*at\s+colonia\s*`) 
-	rePopularNear = regexp.MustCompile(`\s*near\s*(\S.*\S)`)
-	rePopularInside = regexp.MustCompile(`\s*inside\s*(\d+)\s*from\s+(\S.*\S)`) 
+	rePopularInTheBuble  = regexp.MustCompile(`\s*in\s+the\s*bubb?le\s*`)
+	rePopularInTheGalaxy = regexp.MustCompile(`\s*in\s+the\s*galaxy\s*`)
+	rePopularAtColonia   = regexp.MustCompile(`\s*at\s+colonia\s*`)
+	rePopularNear        = regexp.MustCompile(`\s*near\s*(\S.*\S)`)
+	rePopularInside      = regexp.MustCompile(`\s*inside\s*(\d+)\s*from\s+(\S.*\S)`)
 )
 
 type incoming_message struct {
@@ -29,7 +29,7 @@ type incoming_message struct {
 }
 
 type polular_system_call_param struct {
-	name string
+	name   string
 	radius float64
 }
 
@@ -259,10 +259,18 @@ func (t *talker) handleHelpRequest(ds *discordgo.Session, channelID string) {
 		"\tCalculates distance between the systems\n" +
 		"stat humans\n" +
 		"\tGives some numbers about the galaxy\n" +
-		"popular ....\n" +
-		"\tTo be done)))\n" +
+		"popular inside <num L.Y.> from <system name>\n" +
+		"\tCollects system visit counts\n\n" +
+		"\tpopular near <system name>\n" +
+		"\t\tA shortcut to popular inside 100 from <system name>\n" +
+		"\tpopular in the bubble\n" +
+		"\t\tMeans popular inside 1000 from Sol\n" +
+		"\tpopular at Colonia\n" +
+		"\t\t... popular inside 500 from Colonia\n" +
+		"\tpopular in the galaxy\n" +
+		"\t\t... popular inside 100000 from Sol\n" +
 		"```"
-		
+
 	SendMessage(ds, channelID, txt)
 }
 
@@ -352,7 +360,7 @@ func getVisitedSystemsTable(stat []*edGalaxy.SystemVisitsStatCalculated, total i
 	return rows, mxLen[0], mxLen[1], mxLen[2], mxLen[3]
 }
 
-func findPopularSystemParam( rqString string) * polular_system_call_param {
+func findPopularSystemParam(rqString string) *polular_system_call_param {
 	lcrq := []byte(strings.ToLower(rqString))
 	if rePopularInTheBuble.Match(lcrq) {
 		return &polular_system_call_param{name: "Sol", radius: 1000}
@@ -389,15 +397,15 @@ func findPopularSystemParam( rqString string) * polular_system_call_param {
 }
 
 func (t *talker) handlePopularSystemsRequest(ds *discordgo.Session, channelID string, systemName string) {
-	
+
 	p := findPopularSystemParam(systemName)
 	if p == nil {
 		SendMessage(ds, channelID, "Sorry, i don't understand you")
 		return
 	}
-	
+
 	systemName = strings.Title(p.name)
-	 
+
 	if len(systemName) < 2 {
 		SendMessage(ds, channelID, "System name must be at least 2 chars")
 		return
@@ -435,7 +443,7 @@ func (t *talker) handlePopularSystemsRequest(ds *discordgo.Session, channelID st
 
 	fmtStr := fmt.Sprintf("%%-%ds  %%%ds  %%%ds  %%%ds\n", mxNameLen, mxVisitsLen, mxVisitsPersLen, mxDistLen)
 	log.Printf("Format string: '%s'", fmtStr)
-	
+
 	txt += "```\n"
 	txt += fmt.Sprintf(fmtStr, "System", "Visits", "%", "Distance\n")
 
