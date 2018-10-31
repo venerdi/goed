@@ -10,13 +10,27 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"strconv"
 	"text/scanner"
+)
+
+var (
+	rePopularInTheBuble = regexp.MustCompile(`\s*in\s+the\s*bubb?le\s*`)
+	rePopularInTheGalaxy = regexp.MustCompile(`\s*in\s+the\s*galaxy\s*`) 
+	rePopularAtColonia = regexp.MustCompile(`\s*at\s+colonia\s*`) 
+	rePopularNear = regexp.MustCompile(`\s*near\s*(\S.*\S)`)
+	rePopularInside = regexp.MustCompile(`\s*inside\s*(\d+)\s*from\s+(\S.*\S)`) 
 )
 
 type incoming_message struct {
 	s        *discordgo.Session
 	m        *discordgo.MessageCreate
 	isDirect bool
+}
+
+type polular_system_call_param struct {
+	name string
+	radius float64
 }
 
 type talker struct {
@@ -245,7 +259,10 @@ func (t *talker) handleHelpRequest(ds *discordgo.Session, channelID string) {
 		"\tCalculates distance between the systems\n" +
 		"stat humans\n" +
 		"\tGives some numbers about the galaxy\n" +
+		"popular ....\n" +
+		"\tTo be done)))\n" +
 		"```"
+		
 	SendMessage(ds, channelID, txt)
 }
 
@@ -305,7 +322,82 @@ func getStationsTable(stations []*edGalaxy.DockableStationShortInfo) ([][]string
 	}
 	return rows, mxDistSize, mxDescrSize
 }
+
+func getVisitedSystemsTable(stat []*edGalaxy.SystemVisitsStatCalculated, total int64) ([][]string, int, int, int, int) {
+	//	mxNameLen, mxVisitsLen, mxVisitsPersLen, mxDistLen
+	rows := make([][]string, len(stat))
+
+	mxLen := make([]int, 4)
+	for i, _ := range mxLen {
+		mxLen[i] = 0
+	}
+
+	ftotal := float64(total) / 100
+
+	for i, s := range stat {
+		row := make([]string, 4)
+		rows[i] = row
+		row[0] = strings.Title(s.Name)
+		row[1] = humanize.Comma(s.Count)
+		row[2] = fmt.Sprintf("%.02f", float64(s.Count)/ftotal)
+		row[3] = fmt.Sprintf("%.02f", s.Distance)
+
+		for j, txt := range row {
+			l := len(txt)
+			if l > mxLen[j] {
+				mxLen[j] = l
+			}
+		}
+	}
+	return rows, mxLen[0], mxLen[1], mxLen[2], mxLen[3]
+}
+
+func findPopularSystemParam( rqString string) * polular_system_call_param {
+	lcrq := []byte(strings.ToLower(rqString))
+	if rePopularInTheBuble.Match(lcrq) {
+		return &polular_system_call_param{name: "Sol", radius: 1000}
+	}
+	if rePopularInTheGalaxy.Match(lcrq) {
+		return &polular_system_call_param{name: "Sol", radius: 1000000}
+	}
+	if rePopularAtColonia.Match(lcrq) {
+		return &polular_system_call_param{name: "Colonia", radius: 500}
+	}
+	lstr := strings.ToLower(rqString)
+	mt := rePopularNear.FindAllStringSubmatch(lstr, 1)
+	if mt != nil && len(mt) > 0 {
+		if mt[0] != nil && len(mt[0]) == 2 {
+			return &polular_system_call_param{name: mt[0][1], radius: 100}
+		}
+	}
+	mt = rePopularInside.FindAllStringSubmatch(lstr, 1)
+	if mt != nil && len(mt) > 0 {
+		if mt[0] != nil && len(mt[0]) == 3 {
+			r, err := strconv.ParseFloat(mt[0][1], 64)
+			if err == nil {
+				if r < 0.01 {
+					return nil
+				}
+				if r > 100000 {
+					r = 100000
+				}
+			}
+			return &polular_system_call_param{name: mt[0][2], radius: r}
+		}
+	}
+	return nil
+}
+
 func (t *talker) handlePopularSystemsRequest(ds *discordgo.Session, channelID string, systemName string) {
+	
+	p := findPopularSystemParam(systemName)
+	if p == nil {
+		SendMessage(ds, channelID, "Sorry, i don't understand you")
+		return
+	}
+	
+	systemName = strings.Title(p.name)
+	 
 	if len(systemName) < 2 {
 		SendMessage(ds, channelID, "System name must be at least 2 chars")
 		return
@@ -315,15 +407,42 @@ func (t *talker) handlePopularSystemsRequest(ds *discordgo.Session, channelID st
 		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", systemName))
 		return
 	}
-	stat, total, err := t.giClient.GetMostVisitedSystems(systemName, 200, 20)
+	stat, total, err := t.giClient.GetMostVisitedSystems(p.name, p.radius, 20)
 	if err != nil {
 		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
 		return
 	}
-	txt := fmt.Sprintf("Total visints in the area %d\n", total)
-	for _, s := range stat {
-		txt += fmt.Sprintf("%s: Count %d Distance %.02f\n", s.Name, s.Count, s.Distance)
+	if total == 0 {
+		SendMessage(ds, channelID, fmt.Sprintf("I didn't see any mention of %s in the social media", systemName))
+		return
 	}
+	txt := fmt.Sprintf("I know about %s visit(s) inside %.1f LY from %s\n", humanize.Comma(total), p.radius, systemName)
+
+	rows, mxNameLen, mxVisitsLen, mxVisitsPersLen, mxDistLen := getVisitedSystemsTable(stat, total)
+
+	if mxNameLen < 6 { //"System"
+		mxNameLen = 6
+	}
+	if mxVisitsLen < 7 { //"Visits"
+		mxVisitsLen = 7
+	}
+	if mxVisitsPersLen < 1 { //"%"
+		mxVisitsPersLen = 1
+	}
+	if mxDistLen < 8 { //"Distance"
+		mxDistLen = 8
+	}
+
+	fmtStr := fmt.Sprintf("%%-%ds  %%%ds  %%%ds  %%%ds\n", mxNameLen, mxVisitsLen, mxVisitsPersLen, mxDistLen)
+	log.Printf("Format string: '%s'", fmtStr)
+	
+	txt += "```\n"
+	txt += fmt.Sprintf(fmtStr, "System", "Visits", "%", "Distance\n")
+
+	for _, row := range rows {
+		txt += fmt.Sprintf(fmtStr, row[0], row[1], row[2], row[3])
+	}
+	txt += "```\n"
 	SendMessage(ds, channelID, txt)
 }
 
