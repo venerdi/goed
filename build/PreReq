@@ -4,3 +4,5 @@ go get github.com/golang/protobuf
 go get google.golang.org/grpc
 go get github.com/lithammer/fuzzysearch/fuzzy
 go get github.com/go-zeromq/zmq4
+go get github.com/bwmarrin/discordgo
+go get github.com/spf13/viper
