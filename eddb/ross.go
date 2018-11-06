@@ -307,8 +307,6 @@ func (c *ShipStatCollector) handleDocked(m *EDDNMessage) {
 		systemStat.StationVisits[nm] = collector
 	}
 	collector.NoteVisit(docked.Timestamp)
-	log.Printf("Docked at %s to %s\n", docked.StarSystem, docked.StationName)
-	//	log.Printf("Docked at %s to %s                          ---- %s %s %s\n", docked.StarSystem, docked.StationName, m.Header.SoftwareName, m.Header.UploaderID, docked.Timestamp.Format(time.StampMilli))
 }
 
 func (c *ShipStatCollector) handleFSDJump(m *EDDNMessage) {
@@ -331,8 +329,6 @@ func (c *ShipStatCollector) handleFSDJump(m *EDDNMessage) {
 		c.systemsStat[nm] = systemStat
 	}
 	systemStat.SystemVisits.NoteVisit(jump.Timestamp)
-	log.Printf("FSDJump to %s\n", jump.StarSystem)
-	//	log.Printf("FSDJump to %s              ---- %s %s %s\n", jump.StarSystem, m.Header.SoftwareName, m.Header.UploaderID, jump.Timestamp.Format(time.StampMilli))
 }
 
 func (c *ShipStatCollector) Shutdown() {
