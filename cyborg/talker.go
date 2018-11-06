@@ -274,15 +274,22 @@ func (t *talker) handleHelpRequest(ds *discordgo.Session, channelID string) {
 	SendMessage(ds, channelID, txt)
 }
 
-func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, systemName string) {
-
+func (t *talker) chkSystemName(systemName string) string {
 	if len(systemName) < 2 {
-		SendMessage(ds, channelID, "System name must be at least 2 chars")
-		return
+		return "System name must be at least 2 chars"
 	}
 
 	if _, ignored := t.ignoredSystems[strings.ToLower(systemName)]; ignored {
-		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", systemName))
+		return fmt.Sprintf("%s is a permit locked system", systemName)
+	}
+
+	return ""
+}
+
+func (t *talker) handleSystemRequest(ds *discordgo.Session, channelID string, systemName string) {
+
+	if errmsg := t.chkSystemName(systemName); errmsg != "" {
+		SendMessage(ds, channelID, errmsg)
 		return
 	}
 
@@ -406,15 +413,11 @@ func (t *talker) handlePopularSystemsRequest(ds *discordgo.Session, channelID st
 
 	systemName = strings.Title(p.name)
 
-	if len(systemName) < 2 {
-		SendMessage(ds, channelID, "System name must be at least 2 chars")
+	if errmsg := t.chkSystemName(systemName); errmsg != "" {
+		SendMessage(ds, channelID, errmsg)
 		return
 	}
 
-	if _, ignored := t.ignoredSystems[strings.ToLower(systemName)]; ignored {
-		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", systemName))
-		return
-	}
 	stat, total, err := t.giClient.GetMostVisitedSystems(p.name, p.radius, 20)
 	if err != nil {
 		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
@@ -456,13 +459,8 @@ func (t *talker) handlePopularSystemsRequest(ds *discordgo.Session, channelID st
 
 func (t *talker) handleStationsRequest(ds *discordgo.Session, channelID string, systemName string) {
 
-	if len(systemName) < 2 {
-		SendMessage(ds, channelID, "System name must be at least 2 chars")
-		return
-	}
-
-	if _, ignored := t.ignoredSystems[strings.ToLower(systemName)]; ignored {
-		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", systemName))
+	if errmsg := t.chkSystemName(systemName); errmsg != "" {
+		SendMessage(ds, channelID, errmsg)
 		return
 	}
 
@@ -517,18 +515,13 @@ func (t *talker) handleDistanceRequest(ds *discordgo.Session, channelID string, 
 		return
 	}
 
-	if len(pair[0]) < 2 || len(pair[1]) < 2 {
-		SendMessage(ds, channelID, "System name must be at least 2 chars")
+	if errmsg := t.chkSystemName(pair[0]); errmsg != "" {
+		SendMessage(ds, channelID, errmsg)
 		return
 	}
 
-	if _, ignored := t.ignoredSystems[strings.ToLower(pair[0])]; ignored {
-		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[0]))
-		return
-	}
-
-	if _, ignored := t.ignoredSystems[strings.ToLower(pair[1])]; ignored {
-		SendMessage(ds, channelID, fmt.Sprintf("%s is a permit locked system", pair[1]))
+	if errmsg := t.chkSystemName(pair[1]); errmsg != "" {
+		SendMessage(ds, channelID, errmsg)
 		return
 	}
 
