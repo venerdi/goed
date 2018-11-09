@@ -60,7 +60,7 @@ func BuildEDDBInfo(dataCache *DataCacheConfig) (*EDDBInfo, error) {
 			return nil, err
 		}
 	}else{
-		log.Println("Commodities processing is not eneabled in the configuration file.")
+		log.Println("Commodities processing is not enabled in the configuration file.")
 	}
 	log.Println("Mapping")
 	systemsByName := make(map[string]*SystemRecordV5)
