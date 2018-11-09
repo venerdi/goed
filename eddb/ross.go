@@ -22,10 +22,11 @@ const (
 	SCHEMA_KEY = "$schemaRef"
 	RELAY      = "tcp://eddn.edcd.io:9500"
 
-	cmd_exit          = 0
-	cmd_backup        = 1
-	cmd_restore       = 2
-	cmd_getSystemStat = 10
+	cmd_exit            = 0
+	cmd_backup          = 1
+	cmd_restore         = 2
+	cmd_getSystemStat   = 10
+	cmd_getActivityStat = 11
 )
 
 type EDDNMessage struct {
@@ -105,6 +106,11 @@ type shipStatCollector_getSystemVisitStatRequest struct {
 	maxDistance float64
 }
 
+type shipStatCollector_getActivityStatRequest struct {
+	coords      *edGalaxy.Point3D
+	maxDistance float64
+}
+
 type shipStatCollector_getSystemVisitStatReply struct {
 	stat         []*edGalaxy.SystemVisitsStat
 	inRangeCount int64
@@ -127,7 +133,11 @@ type ShipStatCollector struct {
 		2 - shutdown requested
 	*/
 	listenLoopStatus int32
-	systemsStat      map[string]*SystemShipStat
+
+	timeframe   int64
+	historySize int
+
+	systemsStat map[string]*SystemShipStat
 }
 
 func NewShipStatCollector() *ShipStatCollector {
@@ -136,6 +146,8 @@ func NewShipStatCollector() *ShipStatCollector {
 		docked:           make(chan *EDDNMessage, 10),
 		control:          make(chan shipStatCollector_controlMessage, 10),
 		listenLoopStatus: 0,
+		timeframe:        3600,
+		historySize:      7 * 24,
 		systemsStat:      make(map[string]*SystemShipStat)}
 	go c.processMessages()
 	return c
@@ -205,6 +217,11 @@ func (c *ShipStatCollector) handleControlMessage(m *shipStatCollector_controlMes
 			m.result <- c.getSystemVisitStat(m.params.(shipStatCollector_getSystemVisitStatRequest))
 			return false
 		}
+	case cmd_getActivityStat:
+		{
+			m.result <- c.getActivityStat(m.params.(shipStatCollector_getActivityStatRequest))
+			return false
+		}
 	default:
 		{
 			log.Printf("Unhandled command %d\n", m.command)
@@ -213,6 +230,40 @@ func (c *ShipStatCollector) handleControlMessage(m *shipStatCollector_controlMes
 	}
 	return false
 }
+
+func (c *ShipStatCollector) getActivityStat(rq shipStatCollector_getActivityStatRequest) []*edGalaxy.ActivityStatItem {
+	rv := make([]*edGalaxy.ActivityStatItem, c.historySize)
+
+	ctf := time.Now().Unix() / c.timeframe
+	for i := 0; i < c.historySize; i++ {
+		rv[i] = &edGalaxy.ActivityStatItem{Timestamp: ctf * c.timeframe, NumJumps: 0, NumDocks: 0}
+		ctf--
+	}
+
+	statByMark := make(map[int64]*edGalaxy.ActivityStatItem)
+	for _, systemStat := range c.systemsStat {
+		if rq.coords.Distance(&systemStat.Coords) < rq.maxDistance {
+			systemStat.updateActivityByMark(&statByMark)
+		}
+	}
+	return rv
+}
+
+func (sss *SystemShipStat) updateActivityByMark(statByMark *map[int64]*edGalaxy.ActivityStatItem) {
+	for _, markStat := range sss.SystemVisits.Visits {
+		if frameStat, exists := (*statByMark)[markStat.Timemark]; exists {
+			frameStat.NumJumps += markStat.VisitCount
+		}
+	}
+	for _, StationStat := range sss.StationVisits {
+		for _, markStat := range (*StationStat).Visits {
+			if frameStat, exists := (*statByMark)[markStat.Timemark]; exists {
+				frameStat.NumDocks += markStat.VisitCount
+			}
+		}
+	}
+}
+
 func (c *ShipStatCollector) getSystemVisitStat(rq shipStatCollector_getSystemVisitStatRequest) shipStatCollector_getSystemVisitStatReply {
 	var totalCount int64 = 0
 	stat := make([]*edGalaxy.SystemVisitsStat, 0)
@@ -291,7 +342,7 @@ func (c *ShipStatCollector) handleDocked(m *EDDNMessage) {
 		}
 		systemStat = &SystemShipStat{Name: docked.StarSystem,
 			Coords:       edGalaxy.Point3D{X: docked.StarPos[0], Y: docked.StarPos[1], Z: docked.StarPos[2]},
-			SystemVisits: edGalaxy.NewTimeVisitStatCollector(7*24, 3600),
+			SystemVisits: edGalaxy.NewTimeVisitStatCollector(c.historySize, c.timeframe),
 		}
 		c.systemsStat[nm] = systemStat
 		systemStat.SystemVisits.NoteVisit(docked.Timestamp) // it's me here
@@ -303,7 +354,7 @@ func (c *ShipStatCollector) handleDocked(m *EDDNMessage) {
 	nm = strings.ToUpper(docked.StationName)
 	collector, exists := systemStat.StationVisits[nm]
 	if !exists {
-		collector = edGalaxy.NewTimeVisitStatCollector(7*24, 3600)
+		collector = edGalaxy.NewTimeVisitStatCollector(c.historySize, c.timeframe)
 		systemStat.StationVisits[nm] = collector
 	}
 	collector.NoteVisit(docked.Timestamp)
@@ -384,6 +435,17 @@ func (c *ShipStatCollector) GetSystemVisitsStat(coords *edGalaxy.Point3D, maxDis
 		rpl.stat = rpl.stat[:limit]
 	}
 	return rpl.stat, rpl.inRangeCount, nil
+}
+
+func (c *ShipStatCollector) GetActivityStat(coords *edGalaxy.Point3D, maxDistance float64) []*edGalaxy.ActivityStatItem {
+	m := shipStatCollector_controlMessage{
+		command: cmd_getActivityStat,
+		params:  shipStatCollector_getActivityStatRequest{coords: coords, maxDistance: maxDistance},
+		result:  make(chan interface{})}
+
+	c.control <- m
+
+	return (<-m.result).([]*edGalaxy.ActivityStatItem)
 }
 
 func (c *ShipStatCollector) listenLoop() {
