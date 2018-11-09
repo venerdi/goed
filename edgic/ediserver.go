@@ -123,6 +123,15 @@ func galaxySystemVisitsStat2pb(coords *edGalaxy.Point3D, stat []*edGalaxy.System
 	}
 	return rv
 }
+
+func galaxyActivityStatItem2pb(gstat []*edGalaxy.ActivityStatItem) ([]*pb.ActivityStatItem) {
+	pbStat := make([]*pb.ActivityStatItem, len(gstat))
+	for i, s := range gstat {
+		pbStat[i] = &pb.ActivityStatItem { Timestamp: s.Timestamp, NumJumps: s.NumJumps, NumDocks: s.NumDocks }
+	}
+	return pbStat
+}
+
 func galaxyInterestingSystem4State2pb(s *edGalaxy.InterestingSystem4State) *pb.InterestingSystem4State {
 	if s == nil {
 		return nil
@@ -247,6 +256,7 @@ func (p *grpcProcessor) GetInterestingSystem4State(ctx context.Context, in *pb.I
 	}
 	return &pb.InterestingSystem4StateReply{Systems: pbPlaces}, nil
 }
+
 func (p *grpcProcessor) GetMostVisitedSystems(ctx context.Context, in *pb.MostVisitedSystemsRequest) (*pb.MostVisitedSystemsReply, error) {
 	nm := in.GetOrigin()
 	coords, known := p.gi.getSystemCoords(nm)
@@ -265,6 +275,28 @@ func (p *grpcProcessor) GetMostVisitedSystems(ctx context.Context, in *pb.MostVi
 
 	return &pb.MostVisitedSystemsReply{SystemVisitStat: galaxySystemVisitsStat2pb(coords, stat),
 		TotalCount: total}, nil
+}
+
+func (p *grpcProcessor) GetGalaxyActivityStat(ctx context.Context, in *pb.ActivityStatRequest) (*pb.ActivityStatReply, error) {
+
+	known := false
+	coords := edGalaxy.Sol
+	
+
+	nm := in.GetOrigin()
+	if len(nm) > 1 {
+		if coords, known = p.gi.getSystemCoords(nm); !known {
+			return &pb.ActivityStatReply{Error: fmtUnknownSystem(nm)}, nil
+		}
+	}
+
+	if p.gi.visitsStatProvider == nil {
+		return &pb.ActivityStatReply{Error: "Stat collector is not set"}, nil
+	}
+
+	stat := p.gi.visitsStatProvider.GetActivityStat(coords, in.GetMaxDistance())
+
+	return &pb.ActivityStatReply{StatItems: galaxyActivityStatItem2pb(stat) }, nil
 }
 
 func (s *GIServer) Serve() error {

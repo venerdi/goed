@@ -112,6 +112,22 @@ message InterestingSystem4StateReply {
   repeated InterestingSystem4State systems = 2;
 }
 
+message ActivityStatItem {
+  int64 timestamp = 1;
+  int64 num_jumps = 2;
+  int64 num_docks = 3;
+}
+
+message ActivityStatRequest {
+  string origin = 1;
+  double max_distance = 2;
+}
+
+message ActivityStatReply {
+  string error = 1; // the error if non - empty
+  repeated ActivityStatItem stat_items= 2;
+}
+
 service EDInfoCenter {
   rpc GetDistance (SystemsDistanceRequest) returns (SystemsDistanceReply) {}
   rpc GetSystemSummary(SystemByNameRequest) returns (SystemSummaryReply) {}
@@ -119,4 +135,5 @@ service EDInfoCenter {
   rpc GetMostVisitedSystems(MostVisitedSystemsRequest) returns (MostVisitedSystemsReply) {}
   rpc GetInterestingSystem4State(InterestingSystem4StateRequest) returns(InterestingSystem4StateReply) {}
   rpc GetHumanWorldStat(google.protobuf.Empty) returns (HumanWorldStat){}
+  rpc GetGalaxyActivityStat(ActivityStatRequest) returns (ActivityStatReply){}
 }

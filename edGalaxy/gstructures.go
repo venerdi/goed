@@ -65,10 +65,6 @@ type SystemVisitsStatCalculated struct {
 	Distance float64
 }
 
-type VisitsStatProvider interface {
-	GetSystemVisitsStat(coords *Point3D, maxDistance float64, limit int)([]*SystemVisitsStat, int64, error)
-}
-
 type SystemSummaryReply struct {
 	RequestedSystemName string
 	System              *SystemSummary
@@ -82,6 +78,19 @@ type HumanWorldStat struct {
 	HumanFactions int64
 	Population    int64
 }
+
+type ActivityStatItem struct {
+  Timestamp int64
+  NumJumps  int64
+  NumDocks  int64
+}
+
+
+type VisitsStatProvider interface {
+	GetSystemVisitsStat(coords *Point3D, maxDistance float64, limit int)([]*SystemVisitsStat, int64, error)
+	GetActivityStat(coords *Point3D, maxDistance float64)([]*ActivityStatItem)
+}
+
 
 type SystemSummaryReplyChan chan *SystemSummaryReply
 
