@@ -100,6 +100,28 @@ func (cc *EDInfoCenterClient) GetHumanWorldStat() (*edGalaxy.HumanWorldStat, err
 		Population:    stat.GetPopulation()}, nil
 }
 
+func (cc *EDInfoCenterClient) GetGalaxyActivityStat(systemName string, maxDistance float64) ([]*edGalaxy.ActivityStatItem, error) {
+	var rpl *pb.ActivityStatReply
+	var cerr error = nil
+
+	statcall := func(c pb.EDInfoCenterClient, ctx context.Context) {
+		rpl, cerr = c.GetGalaxyActivityStat(ctx, &pb.ActivityStatRequest{
+			Origin:      systemName,
+			MaxDistance: maxDistance})
+	}
+	err := callRpc(cc.addr, statcall)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if cerr != nil {
+		log.Printf("Could not get galaxy activity: %v", err)
+		return nil, errors.New("Galaxy information server malfunction")
+	}
+	return pbActivityStatItems2galaxyActivityStatItems(rpl.GetStatItems()), nil
+}
+
 func (cc *EDInfoCenterClient) GetMostVisitedSystems(systemName string, maxDistance float64, limit int) ([]*edGalaxy.SystemVisitsStatCalculated, int64, error) {
 	var rpl *pb.MostVisitedSystemsReply
 	var cerr error = nil
@@ -185,6 +207,24 @@ func pbPoint3D2galaxy(p *pb.Point3D) *edGalaxy.Point3D {
 		return nil
 	}
 	return &edGalaxy.Point3D{X: p.X, Y: p.Y, Z: p.Z}
+}
+
+func pbActivityStatItems2galaxyActivityStatItems(pbActivity []*pb.ActivityStatItem) []*edGalaxy.ActivityStatItem {
+	if pbActivity == nil {
+		return nil
+	}
+	activity := make([]*edGalaxy.ActivityStatItem, len(pbActivity))
+	for i, a := range pbActivity {
+		if a != nil {
+			activity[i] = &edGalaxy.ActivityStatItem{
+				Timestamp: a.GetTimestamp(),
+				NumJumps:  a.GetNumJumps(),
+				NumDocks:   a.GetNumDocks()}
+		} else {
+			activity[i] = nil
+		}
+	}
+	return activity
 }
 
 func pbSystemVisitsStat2galaxySystemVisitsStatCalculated(pbStat []*pb.SystemVisitsStat) []*edGalaxy.SystemVisitsStatCalculated {
