@@ -1,2 +1,2 @@
-go build goed\cmd\cyborg
-go build goed\cmd\edicenter
+go build goed/cmd/cyborg
+go build goed/cmd/edicenter
