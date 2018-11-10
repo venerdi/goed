@@ -1,6 +1,7 @@
 package cyborg
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/dustin/go-humanize"
@@ -111,6 +112,10 @@ func (t *talker) handleIncomingMessage(im *incoming_message) {
 	}
 	if strings.HasPrefix(ctx, "popular ") {
 		t.handlePopularSystemsRequest(im.s, im.m.ChannelID, ctx[8:])
+		return
+	}
+	if strings.HasPrefix(ctx, "activity ") {
+		t.handleActivityRequest(im.s, im.m.ChannelID, ctx[9:])
 		return
 	}
 	if _, op := t.operators[im.m.Author.ID]; im.isDirect && op {
@@ -401,6 +406,59 @@ func findPopularSystemParam(rqString string) *polular_system_call_param {
 		}
 	}
 	return nil
+}
+
+func (t *talker) handleActivityRequest(ds *discordgo.Session, channelID string, systemName string) {
+//	var p *polular_system_call_param
+//	if len(systemName) == 0 {
+//		p = &polular_system_call_param{name: "Sol", radius: 100000}
+//	}else{
+//		p = findPopularSystemParam(systemName)
+//	}
+
+	p := findPopularSystemParam(systemName)
+	if p == nil {
+		SendMessage(ds, channelID, "Sorry, i don't understand you")
+		return
+	}
+
+	systemName = strings.Title(p.name)
+
+	if errmsg := t.chkSystemName(systemName); errmsg != "" {
+		SendMessage(ds, channelID, errmsg)
+		return
+	}
+
+	stat, err := t.giClient.GetGalaxyActivityStat(p.name, p.radius)
+	if err != nil {
+		SendMessage(ds, channelID, fmt.Sprintf("%v", err))
+		return
+	}
+	if stat == nil || len(stat) < 2 {
+		SendMessage(ds, channelID, fmt.Sprintf("Not enough data to tell something around %s", systemName))
+		return
+	}
+
+	pngBuffer := &bytes.Buffer{}
+
+	drawChart(stat, pngBuffer)
+	fileName := "galaxyActivity.png"
+	
+	ms := &discordgo.MessageSend{
+		Embed: &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Activity inside %.1f LY from %s\n", p.radius, systemName),
+			Image: &discordgo.MessageEmbedImage{
+				URL: "attachment://" + fileName,
+			},
+		},
+		Files: []*discordgo.File{
+			&discordgo.File{
+				Name:   fileName,
+				Reader: pngBuffer,
+			},
+		},
+	}
+	ds.ChannelMessageSendComplex(channelID, ms)
 }
 
 func (t *talker) handlePopularSystemsRequest(ds *discordgo.Session, channelID string, systemName string) {
