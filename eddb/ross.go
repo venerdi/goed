@@ -233,14 +233,16 @@ func (c *ShipStatCollector) handleControlMessage(m *shipStatCollector_controlMes
 
 func (c *ShipStatCollector) getActivityStat(rq shipStatCollector_getActivityStatRequest) []*edGalaxy.ActivityStatItem {
 	rv := make([]*edGalaxy.ActivityStatItem, c.historySize)
+	statByMark := make(map[int64]*edGalaxy.ActivityStatItem)
 
 	ctf := time.Now().Unix() / c.timeframe
 	for i := 0; i < c.historySize; i++ {
-		rv[i] = &edGalaxy.ActivityStatItem{Timestamp: ctf * c.timeframe, NumJumps: 0, NumDocks: 0}
+		item := &edGalaxy.ActivityStatItem{Timestamp: ctf * c.timeframe, NumJumps: 0, NumDocks: 0}
+		rv[i] = item
+		statByMark[ctf] = item
 		ctf--
 	}
 
-	statByMark := make(map[int64]*edGalaxy.ActivityStatItem)
 	for _, systemStat := range c.systemsStat {
 		if rq.coords.Distance(&systemStat.Coords) < rq.maxDistance {
 			systemStat.updateActivityByMark(&statByMark)
