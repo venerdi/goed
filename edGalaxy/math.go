@@ -37,3 +37,17 @@ func Distance(p1, p2 *Point3D) float64 {
 func (p1 *Point3D) Distance(p *Point3D) float64 {
 	return Distance(p, p1)
 }
+
+func Max(x, y int64) int64 {
+	if x < y {
+		return y
+	}
+	return x
+}
+
+func Min(x, y int64) int64 {
+	if x > y {
+		return y
+	}
+	return x
+}
