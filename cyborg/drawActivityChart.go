@@ -183,6 +183,14 @@ func drawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
 		Width:  900,
 		Height: 450,
 		DPI:    72,
+		Background: chart.Style{
+			Padding: chart.Box{
+				Top:    10,
+				Left:   5,
+				Right:  5,
+				Bottom: 5,
+			},
+		},
 
 		ColorPalette: activityColorPalette{},
 		XAxis: chart.XAxis{
@@ -192,17 +200,8 @@ func drawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
 			Ticks:          makeDayTicks(stat[1:]),
 		},
 		YAxis: chart.YAxis{
-			Name:           "Jumps",
-			NameStyle:      chart.Style{Show: true, TextVerticalAlign: chart.TextVerticalAlignTop},
-			Style:          chart.StyleShow(),
-			Ticks:          makeYTicks(js),
-			ValueFormatter: HumanIntValueFormatter,
-		},
-		YAxisSecondary: chart.YAxis{
-			//			Name:           "Docks",
-			//			NameStyle:      chart.StyleShow(),
-			Style:          chart.StyleShow(),
-			Ticks:          makeYTicks(ds),
+			Style: chart.StyleShow(),
+			//			Ticks:          makeYTicks(js),
 			ValueFormatter: HumanIntValueFormatter,
 		},
 		Series: []chart.Series{
@@ -212,7 +211,7 @@ func drawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
 					StrokeColor: discordBlue,                // chart.ColorBlue,
 					FillColor:   discordBlue.WithAlpha(150), // chart.ColorBlue.WithAlpha(100),
 				},
-				Name:    "Jumps",
+				Name:    "Jumps/h",
 				XValues: times,
 				YValues: js},
 			chart.ContinuousSeries{
@@ -221,14 +220,23 @@ func drawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
 					StrokeColor: chart.ColorAlternateGreen,
 					FillColor:   chart.ColorAlternateGreen.WithAlpha(100),
 				},
-				Name:    "Docks",
-				YAxis:   chart.YAxisSecondary,
+				Name:    "Docks/h",
 				XValues: times,
 				YValues: ds},
 		},
 	}
 
-//	graph.Elements = []chart.Renderable{chart.LegendThin(&graph)}
+	graph.Elements = []chart.Renderable{
+		chart.LegendThin(&graph,
+			chart.Style{
+				FillColor:   discordDarkGrey,
+				FontColor:   discordWhite,
+				FontSize:    9.0,
+				StrokeWidth: chart.DefaultAxisLineWidth})}
 	graph.Render(chart.PNG, out)
 	return nil
+}
+
+func DrawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
+	return drawChart(stat, out)
 }
