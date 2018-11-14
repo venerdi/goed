@@ -29,7 +29,7 @@ type incoming_message struct {
 	isDirect bool
 }
 
-type polular_system_call_param struct {
+type system_distance_call_param struct {
 	name   string
 	radius float64
 }
@@ -283,11 +283,9 @@ func (t *talker) chkSystemName(systemName string) string {
 	if len(systemName) < 2 {
 		return "System name must be at least 2 chars"
 	}
-
 	if _, ignored := t.ignoredSystems[strings.ToLower(systemName)]; ignored {
 		return fmt.Sprintf("%s is a permit locked system", systemName)
 	}
-
 	return ""
 }
 
@@ -372,22 +370,22 @@ func getVisitedSystemsTable(stat []*edGalaxy.SystemVisitsStatCalculated, total i
 	return rows, mxLen[0], mxLen[1], mxLen[2], mxLen[3]
 }
 
-func findPopularSystemParam(rqString string) *polular_system_call_param {
+func findPopularSystemParam(rqString string) *system_distance_call_param {
 	lcrq := []byte(strings.ToLower(rqString))
 	if rePopularInTheBuble.Match(lcrq) {
-		return &polular_system_call_param{name: "Sol", radius: 1000}
+		return &system_distance_call_param{name: "Sol", radius: 1000}
 	}
 	if rePopularInTheGalaxy.Match(lcrq) {
-		return &polular_system_call_param{name: "Sol", radius: 1000000}
+		return &system_distance_call_param{name: "Sol", radius: 1000000}
 	}
 	if rePopularAtColonia.Match(lcrq) {
-		return &polular_system_call_param{name: "Colonia", radius: 500}
+		return &system_distance_call_param{name: "Colonia", radius: 500}
 	}
 	lstr := strings.ToLower(rqString)
 	mt := rePopularNear.FindAllStringSubmatch(lstr, 1)
 	if mt != nil && len(mt) > 0 {
 		if mt[0] != nil && len(mt[0]) == 2 {
-			return &polular_system_call_param{name: mt[0][1], radius: 100}
+			return &system_distance_call_param{name: mt[0][1], radius: 100}
 		}
 	}
 	mt = rePopularInside.FindAllStringSubmatch(lstr, 1)
@@ -402,19 +400,19 @@ func findPopularSystemParam(rqString string) *polular_system_call_param {
 					r = 100000
 				}
 			}
-			return &polular_system_call_param{name: mt[0][2], radius: r}
+			return &system_distance_call_param{name: mt[0][2], radius: r}
 		}
 	}
 	return nil
 }
 
 func (t *talker) handleActivityRequest(ds *discordgo.Session, channelID string, systemName string) {
-//	var p *polular_system_call_param
-//	if len(systemName) == 0 {
-//		p = &polular_system_call_param{name: "Sol", radius: 100000}
-//	}else{
-//		p = findPopularSystemParam(systemName)
-//	}
+	//	var p *polular_system_call_param
+	//	if len(systemName) == 0 {
+	//		p = &polular_system_call_param{name: "Sol", radius: 100000}
+	//	}else{
+	//		p = findPopularSystemParam(systemName)
+	//	}
 
 	p := findPopularSystemParam(systemName)
 	if p == nil {
@@ -443,7 +441,7 @@ func (t *talker) handleActivityRequest(ds *discordgo.Session, channelID string, 
 
 	drawChart(stat, pngBuffer)
 	fileName := "galaxyActivity.png"
-	
+
 	ms := &discordgo.MessageSend{
 		Embed: &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Activity inside %.1f LY from %s\n", p.radius, systemName),
