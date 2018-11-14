@@ -407,12 +407,6 @@ func findPopularSystemParam(rqString string) *system_distance_call_param {
 }
 
 func (t *talker) handleActivityRequest(ds *discordgo.Session, channelID string, systemName string) {
-	//	var p *polular_system_call_param
-	//	if len(systemName) == 0 {
-	//		p = &polular_system_call_param{name: "Sol", radius: 100000}
-	//	}else{
-	//		p = findPopularSystemParam(systemName)
-	//	}
 
 	p := findPopularSystemParam(systemName)
 	if p == nil {
@@ -439,7 +433,7 @@ func (t *talker) handleActivityRequest(ds *discordgo.Session, channelID string, 
 
 	pngBuffer := &bytes.Buffer{}
 
-	drawChart(stat, pngBuffer)
+	DrawChart(stat, pngBuffer)
 	fileName := "galaxyActivity.png"
 
 	ms := &discordgo.MessageSend{
