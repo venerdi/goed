@@ -1,0 +1,13 @@
+diff --git a/legend.go b/legend.go
+index 42c11a3..24c92bf 100644
+--- a/legend.go
++++ b/legend.go
+@@ -180,7 +180,7 @@ func LegendThin(c *Chart, userDefaults ...Style) Renderable {
+                        Bottom: legendYMargin + legendBoxHeight,
+                }
+
+-               Draw.Box(r, legendBox, legendDefaults)
++               Draw.Box(r, legendBox, legendStyle)
+
+                r.SetFont(legendStyle.GetFont())
+                r.SetFontColor(legendStyle.GetFontColor())
