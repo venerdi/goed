@@ -93,6 +93,14 @@ func makeDayTicks(stat []*edGalaxy.ActivityStatItem) chart.Ticks {
 	return ticks
 }
 
+func makeGridLines(dayTicks chart.Ticks) []chart.GridLine {
+	gridLines := make([]chart.GridLine, len(dayTicks))
+	for i, t := range dayTicks {
+		gridLines[i] = chart.GridLine{Value: t.Value}
+	}
+	return gridLines
+}
+
 func makeJumpsDocksSeries(stat []*edGalaxy.ActivityStatItem) (jumps, docks, times []float64) {
 	l := len(stat)
 	if l < 1 {
@@ -169,13 +177,14 @@ func UTCUnixTimeFormatter(v interface{}) string {
 	return tm.UTC().Format(time.RFC3339)
 }
 
-func drawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
+func DrawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
 
 	if stat == nil || len(stat) < 2 {
 		return errors.New("Insufficient data points")
 	}
 
 	stat = stat[1:] // strip last hour - could be 0 at the beginning
+	dayTicks := makeDayTicks(stat[1:])
 
 	js, ds, times := makeJumpsDocksSeries(stat)
 
@@ -197,7 +206,14 @@ func drawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
 			Style:          chart.StyleShow(),
 			TickPosition:   chart.TickPositionBetweenTicks,
 			ValueFormatter: UTCUnixTimeFormatter,
-			Ticks:          makeDayTicks(stat[1:]),
+			Ticks:          dayTicks,
+			GridMajorStyle: chart.Style{
+				Show:            true,
+				StrokeColor:     discordWhite,
+				StrokeDashArray: []float64{5.0, 5.0},
+				StrokeWidth:     0.5,
+			},
+			GridLines: makeGridLines(dayTicks),
 		},
 		YAxis: chart.YAxis{
 			Style: chart.StyleShow(),
@@ -235,8 +251,4 @@ func drawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
 				StrokeWidth: chart.DefaultAxisLineWidth})}
 	graph.Render(chart.PNG, out)
 	return nil
-}
-
-func DrawChart(stat []*edGalaxy.ActivityStatItem, out io.Writer) error {
-	return drawChart(stat, out)
 }
