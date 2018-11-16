@@ -264,16 +264,19 @@ func (t *talker) handleHelpRequest(ds *discordgo.Session, channelID string) {
 		"\tCalculates distance between the systems\n" +
 		"stat humans\n" +
 		"\tGives some numbers about the galaxy\n" +
-		"popular inside <num L.Y.> from <system name>\n" +
-		"\tCollects system visit counts\n\n" +
-		"\tpopular near <system name>\n" +
-		"\t\tA shortcut to popular inside 100 from <system name>\n" +
-		"\tpopular in the bubble\n" +
-		"\t\tMeans popular inside 1000 from Sol\n" +
-		"\tpopular at Colonia\n" +
-		"\t\t... popular inside 500 from Colonia\n" +
-		"\tpopular in the galaxy\n" +
-		"\t\t... popular inside 100000 from Sol\n" +
+		"[popular|activity] ...\n" +
+		"\tpopular  - Collects system visit counts\n" +
+		"\tactivity - Draws jumps/h and docks/h\n" +
+		"\tBoth popular and activity accept:\n" +
+		"\t\t--- inside <num L.Y.> from <system name>\n" +
+		"\t\t--- near <system name>\n" +
+		"\t\t\tA shortcut to --- inside 100 from <system name>\n" +
+		"\t\t--- in the bubble\n" +
+		"\t\t\tMeans --- inside 1000 from Sol\n" +
+		"\t\t--- at Colonia\n" +
+		"\t\t\tMeans --- inside 500 from Colonia\n" +
+		"\t\t--- in the galaxy\n" +
+		"\t\t\tMeans --- inside 100,000 from Sol\n" +
 		"```"
 
 	SendMessage(ds, channelID, txt)
