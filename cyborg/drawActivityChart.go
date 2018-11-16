@@ -94,8 +94,12 @@ func makeDayTicks(stat []*edGalaxy.ActivityStatItem) chart.Ticks {
 }
 
 func makeGridLines(dayTicks chart.Ticks) []chart.GridLine {
-	gridLines := make([]chart.GridLine, len(dayTicks))
-	for i, t := range dayTicks {
+	l := len(dayTicks)
+	if l < 3 {
+		return nil
+	}
+	gridLines := make([]chart.GridLine, l-2)
+	for i, t := range dayTicks[1 : l-1] {
 		gridLines[i] = chart.GridLine{Value: t.Value}
 	}
 	return gridLines
