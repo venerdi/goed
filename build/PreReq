@@ -6,3 +6,4 @@ go get github.com/lithammer/fuzzysearch/fuzzy
 go get github.com/go-zeromq/zmq4
 go get github.com/bwmarrin/discordgo
 go get github.com/spf13/viper
+go get github.com/wcharczuk/go-chart
